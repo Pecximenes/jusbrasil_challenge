@@ -1,0 +1,25 @@
+"""Separação dos documentos pelos níveis N1 e N2."""
+
+from collections.abc import Iterable
+
+from bracis_reader.models import TextDocument
+
+
+class DocumentLevelSplitter:
+    """Divide uma coleção de documentos entre os níveis N1 e N2."""
+
+    def split(
+        self,
+        documents: Iterable[TextDocument],
+    ) -> tuple[list[TextDocument], list[TextDocument]]:
+        """Retorna duas listas: documentos N1 e documentos N2."""
+        documents_n1 = []
+        documents_n2 = []
+
+        for document in documents:
+            if "_n1_" in document.documento_id.lower():
+                documents_n1.append(document)
+            elif "_n2_" in document.documento_id.lower():
+                documents_n2.append(document)
+
+        return documents_n1, documents_n2

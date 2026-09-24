@@ -1,4 +1,4 @@
-"""Carregamento dos arquivos TXT de um diretório."""
+"""Carregamento dos documentos TXT."""
 
 from pathlib import Path
 
@@ -6,7 +6,7 @@ from bracis_reader.models import TextDocument
 
 
 class TextDirectoryLoader:
-    """Carrega todos os arquivos TXT existentes em um diretório."""
+    """Carrega todos os arquivos TXT de um diretório."""
 
     def __init__(self, directory: str | Path) -> None:
         self._directory = Path(directory)
@@ -22,9 +22,7 @@ class TextDirectoryLoader:
 
     @staticmethod
     def _load_document(path: Path) -> TextDocument:
-        text = path.read_bytes().decode("utf-8")
-
         return TextDocument(
             documento_id=path.stem,
-            texto=text,
+            texto=path.read_bytes().decode("utf-8"),
         )

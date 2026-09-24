@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bracis-document-reader"
-version = "0.1.0"
-description = "Leitura segura dos documentos do Challenge BRACIS 2026"
+version = "0.3.0"
+description = "Extração e avaliação de citações do Challenge BRACIS 2026"
 requires-python = ">=3.11"
 dependencies = ["pydantic>=2.7,<3"]
 
@@ -25,4 +25,3 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM"]
-

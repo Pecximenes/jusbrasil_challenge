@@ -1,4 +1,4 @@
-"""Separação dos documentos pelos níveis N1 e N2."""
+"""Separação dos documentos por nível."""
 
 from collections.abc import Iterable
 
@@ -13,8 +13,8 @@ class DocumentLevelSplitter:
         documents: Iterable[TextDocument],
     ) -> tuple[list[TextDocument], list[TextDocument]]:
         """Retorna duas listas: documentos N1 e documentos N2."""
-        documents_n1 = []
-        documents_n2 = []
+        documents_n1: list[TextDocument] = []
+        documents_n2: list[TextDocument] = []
 
         for document in documents:
             if "_n1_" in document.documento_id.lower():

@@ -26,26 +26,56 @@ incompleta.
 ```text
 .
 ├── data/
-│   └── txt/                         # Documentos jurídicos
-├── script/
-│   └── goldenset.csv                # Anotações de referência
+│   ├── txt/                            # Documentos jurídicos (LF)
+│   └── goldenset.csv                   # Anotações de referência
+├── refs/                               # Material original enviado pela Jusbrasil
 ├── src/
 │   └── bracis_reader/
-│       ├── __init__.py              # API pública do pacote
-│       ├── application.py           # Orquestração do pipeline
-│       ├── body_extractor.py        # Localização do início do corpo
-│       ├── citation_detector.py     # Aplicação das regex
-│       ├── citation_patterns.py     # Catálogo de padrões
-│       ├── directory_loader.py      # Leitura dos arquivos TXT
-│       ├── evaluation.py            # TP, FP, FN e métricas
-│       ├── goldenset.py             # Leitura do goldenset
-│       ├── level_splitter.py        # Separação N1/N2
-│       ├── models.py                # Modelos Pydantic
-│       ├── overlap_resolver.py      # Remoção de sobreposições
-│       └── reporting.py             # Tabela exibida no terminal
-├── main.py                          # Ponto de entrada
-└── pyproject.toml                   # Dependências e ferramentas
+│       ├── __init__.py                 # API pública do pacote
+│       ├── __main__.py                 # `python -m bracis_reader`
+│       ├── pipeline.py                 # Orquestração do fluxo completo
+│       ├── domain/
+│       │   └── models.py               # Modelos Pydantic
+│       ├── ingestion/
+│       │   ├── directory_loader.py     # Leitura dos arquivos TXT
+│       │   └── level_splitter.py       # Separação N1/N2
+│       ├── extraction/
+│       │   ├── body_extractor.py       # Localização do início do corpo
+│       │   ├── detector.py             # Aplicação das regex
+│       │   ├── overlap_resolver.py     # Remoção de sobreposições
+│       │   └── patterns/
+│       │       ├── base.py             # CitationPattern, flags e espaços
+│       │       ├── structured.py       # Processos, CNJ, súmulas, artigos
+│       │       ├── ocr.py              # Variações tolerantes a OCR
+│       │       ├── generic.py          # Referências incompletas
+│       │       └── registry.py         # Junta os catálogos na ordem correta
+│       ├── evaluation/
+│       │   ├── goldenset.py            # Leitura do goldenset
+│       │   └── evaluator.py            # TP, FP, FN e métricas
+│       └── reporting/
+│           └── console.py              # Tabela exibida no terminal
+├── tests/                              # Testes com pytest
+├── main.py                             # Atalho para `python -m bracis_reader`
+├── .gitattributes                      # Força LF nos TXT/CSV (ver abaixo)
+└── pyproject.toml                      # Dependências e ferramentas
 ```
+
+Cada subpacote corresponde a uma etapa do pipeline e só depende de `domain`
+e das etapas anteriores:
+
+```text
+domain  ←  ingestion  ←  extraction  ←  evaluation  ←  reporting
+                               ↖______ pipeline ______↗
+```
+
+### Quebras de linha
+
+Os índices `inicio`/`fim` do goldenset contam quebras de linha como `\n`.
+No Windows, o Git converte arquivos de texto para CRLF por padrão, o que
+desloca todos os spans e zera os acertos. O `.gitattributes` força `eol=lf`
+nos `.txt` e mantém os `.csv` exatamente como foram enviados. Se o repositório já estava clonado antes dessa
+mudança, rode `git rm --cached -r . && git reset --hard` para regravar os
+arquivos.
 
 ## Arquitetura
 
@@ -165,10 +195,19 @@ python -m pip install -e ".[dev]"
 
 ## Execução
 
-Com os documentos em `data/txt` e o CSV em `script/goldenset.csv`:
+Com os documentos em `data/txt` e o CSV em `data/goldenset.csv`:
 
 ```bash
 python main.py
+# ou
+python -m bracis_reader
+```
+
+Testes e lint:
+
+```bash
+pytest
+ruff check .
 ```
 
 Exemplo de saída:

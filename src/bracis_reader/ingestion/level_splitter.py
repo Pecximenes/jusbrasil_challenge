@@ -2,7 +2,7 @@
 
 from collections.abc import Iterable
 
-from bracis_reader.models import TextDocument
+from bracis_reader.domain.models import TextDocument
 
 
 class DocumentLevelSplitter:

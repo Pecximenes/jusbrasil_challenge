@@ -2,13 +2,13 @@
 
 from collections.abc import Iterable
 
-from bracis_reader.body_extractor import DocumentBodyExtractor
-from bracis_reader.citation_patterns import (
+from bracis_reader.domain.models import CitationCandidate, TextDocument
+from bracis_reader.extraction.body_extractor import DocumentBodyExtractor
+from bracis_reader.extraction.overlap_resolver import CitationOverlapResolver
+from bracis_reader.extraction.patterns import (
     CitationPattern,
     CitationPatternRegistry,
 )
-from bracis_reader.models import CitationCandidate, TextDocument
-from bracis_reader.overlap_resolver import CitationOverlapResolver
 
 
 class CitationDetector:

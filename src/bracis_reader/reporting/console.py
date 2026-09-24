@@ -15,7 +15,10 @@ class ConsoleReportPrinter:
         total_documents: int,
         n1_documents: int,
         n2_documents: int,
+        criterion: str | None = None,
     ) -> None:
+        if criterion:
+            print(f"Critério de acerto: {criterion}")
         print(f"Total de documentos: {total_documents}")
         print(f"Documentos N1: {n1_documents}")
         print(f"Documentos N2: {n2_documents}\n")

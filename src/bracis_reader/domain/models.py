@@ -1,5 +1,7 @@
 """Modelos utilizados na leitura e na detecção de citações."""
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
@@ -20,6 +22,7 @@ class CitationCandidate(BaseModel):
     inicio: int = Field(ge=0)
     fim: int = Field(gt=0)
     trecho: str = Field(min_length=1)
+    tipo: Literal["lei", "jurisprudencia"] | None = None
 
     @model_validator(mode="after")
     def validate_span(self) -> "CitationCandidate":

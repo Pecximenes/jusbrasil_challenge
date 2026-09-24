@@ -44,5 +44,6 @@ class CitationExtractionApplication:
             total_documents=len(documents),
             n1_documents=len(documents_n1),
             n2_documents=len(documents_n2),
+            criterion=self._evaluator.criterion,
         )
         return summary

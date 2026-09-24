@@ -6,9 +6,9 @@ como "jurisprudência pacífica desta Corte") e **mede a qualidade** dessa
 extração comparando o resultado com as anotações oficiais do desafio
 (`goldenset.csv`).
 
-> Nesta etapa o projeto apenas **localiza** as citações. Ele ainda não
-> classifica o trecho como lei ou jurisprudência, nem decide se a referência
-> é real, inventada ou incompleta.
+> Nesta etapa o projeto **localiza** as citações e indica se cada uma é
+> `lei` ou `jurisprudencia`. Ele ainda não decide se a referência é real,
+> inventada ou incompleta, o que exige consultar a base canônica.
 
 ---
 
@@ -21,7 +21,8 @@ extração comparando o resultado com as anotações oficiais do desafio
 5. [Como as citações são encontradas (regex)](#como-as-citações-são-encontradas-regex)
 6. [Como a avaliação funciona](#como-a-avaliação-funciona)
 7. [Resultado atual](#resultado-atual)
-8. [Problemas comuns](#problemas-comuns)
+8. [Como evitamos sobreajuste ao goldenset](#como-evitamos-sobreajuste-ao-goldenset)
+9. [Problemas comuns](#problemas-comuns)
 
 ---
 
@@ -94,6 +95,15 @@ python -m bracis_reader
 O programa lê `data/txt/`, compara com `data/goldenset.csv` e imprime o
 relatório no terminal.
 
+Opções:
+
+| Opção | O que faz |
+|---|---|
+| `--exato` | Conta acerto só com início, fim e trecho idênticos (padrão: IoU ≥ 0,5, como na avaliação oficial) |
+| `--robustez` | Roda também o teste de robustez a ruído (ver [Como evitamos sobreajuste](#como-evitamos-sobreajuste-ao-goldenset)) |
+| `--txt PASTA` | Usa outra pasta de documentos |
+| `--gold CSV` | Usa outro gabarito |
+
 ### 4. Lint
 
 ```bash
@@ -116,7 +126,7 @@ ruff check .    # verifica estilo e imports
 │   ├── domain/                    # Modelos de dados
 │   ├── ingestion/                 # Etapa 1 — leitura dos documentos
 │   ├── extraction/                # Etapa 2 — detecção das citações
-│   │   └── patterns/              #   catálogo de regex
+│   │   └── patterns/              #   catálogo de regex (ver abaixo)
 │   ├── evaluation/                # Etapa 3 — comparação com o gabarito
 │   └── reporting/                 # Etapa 4 — saída no terminal
 ├── main.py                        # Atalho para rodar o projeto
@@ -144,7 +154,7 @@ imutáveis):
 | Modelo | Campos | Para que serve |
 |---|---|---|
 | `TextDocument` | `documento_id`, `texto` | Um documento lido da pasta `data/txt` |
-| `CitationCandidate` | `inicio`, `fim`, `trecho` | Uma citação encontrada no texto |
+| `CitationCandidate` | `inicio`, `fim`, `trecho`, `tipo` | Uma citação encontrada no texto; `tipo` é `lei` ou `jurisprudencia` |
 
 `fim` é exclusivo, e o modelo valida que o tamanho do trecho bate com o
 intervalo. Toda citação respeita:
@@ -164,7 +174,7 @@ documento.texto[citacao.inicio : citacao.fim] == citacao.trecho
 
 | Arquivo | Classe | O que faz |
 |---|---|---|
-| `body_extractor.py` | `DocumentBodyExtractor` | Acha onde o corpo começa (depois de duas linhas vazias seguidas). O cabeçalho não é apagado; apenas não é pesquisado. |
+| `body_extractor.py` | `DocumentBodyExtractor` | Acha onde o corpo começa (depois de duas linhas vazias seguidas; se não houver, na primeira linha vazia). O cabeçalho, com número dos autos, OAB e valor da causa, não é apagado; apenas não é pesquisado. |
 | `detector.py` | `CitationDetector` | Aplica todas as regex no corpo e soma o deslocamento do cabeçalho, para os índices valerem no documento inteiro. |
 | `overlap_resolver.py` | `CitationOverlapResolver` | Se duas regex pegam trechos sobrepostos, mantém o mais longo (ex.: fica "REsp 1.234.567/SP", sai só o número). |
 | `patterns/` | — | O catálogo de regex, detalhado na próxima seção. |
@@ -174,7 +184,8 @@ documento.texto[citacao.inicio : citacao.fim] == citacao.trecho
 | Arquivo | Classe | O que faz |
 |---|---|---|
 | `goldenset.py` | `GoldensetLoader` | Lê o CSV e agrupa as citações esperadas por documento. Converte o texto `\n` do CSV em quebra de linha real. |
-| `evaluator.py` | `CitationEvaluator` | Compara previsão × gabarito pela chave exata `(inicio, fim, trecho)` e calcula TP, FP, FN, precisão, recall e F1. |
+| `evaluator.py` | `CitationEvaluator` | Pareia previsão × gabarito por IoU ≥ 0,5 (critério oficial) ou por igualdade exata, e calcula TP, FP, FN, precisão, recall e F1. |
+| `robustness.py` | `NoiseRobustnessEvaluator` | Gera variantes ruidosas das citações do gabarito e mede quantas o detector ainda encontra. |
 
 ### `reporting/` — etapa 4: saída
 
@@ -191,86 +202,150 @@ construtor, o que facilita testar ou trocar uma peça sem mexer no resto.
 
 ## Como as citações são encontradas (regex)
 
-Os padrões ficam em `src/bracis_reader/extraction/patterns/`, separados
-em três famílias. O `registry.py` junta tudo **nesta ordem**, que importa
-para o desempate entre sobreposições.
+As regras ficam em `src/bracis_reader/extraction/patterns/`. A ideia central
+é **não escrever uma regex por exemplo**, e sim descrever *como uma citação é
+formada* e deixar cada parte tolerante às variações previstas no regulamento.
 
-**1. `structured.py` — citações completas**
-
-| Padrão | Exemplo |
+| Arquivo | Conteúdo |
 |---|---|
-| `processo` | `AgInt no REsp nº 1.234.567/SP`, `Reclamação nº 66.516/RO` |
-| `processo_trabalhista` | `TST-RR-1000-12.2019.5.02.0001` |
-| `sumula` | `Súmula 83 do STJ`, `Súmula Vinculante 10` |
-| `dispositivo_legal` | `art. 1.022, II, do CPC`, `art. 5º da Constituição Federal` |
-| `numero_cnj` | `0001234-56.2020.8.26.0100` |
+| `text.py` | Blocos genéricos: palavras tolerantes a OCR, números, ano, marcador "nº" |
+| `lexicon.py` | Vocabulário jurídico: classes processuais, siglas, tribunais, UFs, códigos |
+| `jurisprudence.py` | Processos, números CNJ, súmulas, temas e OJs |
+| `legislation.py` | Artigos de lei, códigos e Constituição |
+| `incomplete.py` | Citações sem número (descritivas e genéricas) |
+| `registry.py` | Junta tudo na ordem de prioridade |
 
-**2. `ocr.py` — as mesmas citações com erros de digitalização**
+### Tolerância a ruído, aplicada a tudo
 
-Aceita letras confundidas com dígitos (`O`→0, `I`/`l`→1, `S`→5), espaços e
-quebras no meio dos números (`1. 570 531`) e grafias como `Ag. Int.`,
-`EDcl`, `Rec. Esp.`.
+- **Palavras** são compiladas por `fuzzy_word()`, que aceita acentos opcionais,
+  maiúsculas/minúsculas e as trocas de OCR mais comuns (`c↔e`, `l↔1`, `o↔0`,
+  `s↔5`, `m↔rn`). "Súmula", "SÚMULA", "Sumula", "5úmula" e "entendirnento"
+  saem da mesma regra.
+- **Números** aceitam qualquer formatação: `1.741.784`, `1741784`,
+  `1 741 784`, `1.741. 784`, `33.-⏎474`, letras no lugar de dígitos
+  (`2l737l8`, `170076O`) e quebras de linha. Um grupo precisa começar por
+  dígito real, para que siglas como "SC" ou "TO" não virem número.
+- **Espaços** incluem quebra de linha e espaço não separável (`\xa0`).
 
-**3. `generic.py` — referências incompletas (sem número)**
+### Jurisprudência com identificador (`jurisprudence.py`)
 
-| Padrão | Exemplo |
-|---|---|
-| `referencia_normativa_generica` | "normas de regência da matéria" |
-| `referencia_legislativa_generica` | "lei que disciplina a prescrição" |
-| `entendimento_jurisprudencial_generico` | "jurisprudência pacífica desta Corte" |
-| `precedente_generico` | "precedentes do STJ" |
-| `enunciado_sumular_generico` | "verbete sumular aplicável à espécie" |
-| `artigo_generico` | "artigo correspondente do Código Civil" |
+```text
+[processo nº] CLASSE [no|na|nos|nas|em CLASSE]... [nº] NÚMERO [/UF]
+```
 
-Para adicionar um padrão novo: crie o `CitationPattern` no arquivo da
-família certa, rode `python main.py` e compare o F1 antes e depois.
+- **CLASSE** vem do vocabulário: nomes por extenso (cada palavra pode vir
+  abreviada: "Rec. Esp.", "Ag. Reg."), siglas com pontos opcionais ("R.Esp.",
+  "H.C.", "A.REsp"), siglas compostas por prefixo (Ag+REsp = AgREsp,
+  E+REsp = EREsp) e cadeias do TST com hífen (`E-ED-RR`, `AgR-REspe`).
+- **UF** só aceita as 27 siglas reais, em qualquer separador (`/SP`, `- SP`,
+  `(SP)`, `/ SP`).
+- Também: **súmulas** (`Súmula 83 do STJ`, `Súm. 7/STJ`, `Súmula Vinculante 10`),
+  **temas** (`Tema 1.046 da repercussão geral`), **OJs** (`OJ 191 da SBDI-1`)
+  e **números CNJ** soltos no corpo.
+
+### Legislação (`legislation.py`)
+
+```text
+art./artigo NÚMERO [, § 1º | , I | , 'g' | , parágrafo único]... da|do LEI
+```
+
+**LEI** pode ser lei numerada (`Lei nº 13.105/2015`, `Lei 8.078, de 1990`),
+qualquer "Código ..." (`Código de Defesa do Consumidor`, `Código Penal Militar`),
+a Constituição, a CLT por extenso, um estatuto ou uma sigla (`CPC`, `CF/88`).
+
+### Citações sem número (`incomplete.py`)
+
+1. **Descritivas**, que dá para buscar na base por tribunal, ano e relator:
+
+   ```text
+   DECISÃO [do TRIBUNAL] [, em|de ANO] [, relatoria de NOME]   (exige ano ou relator)
+   ```
+
+   Ex.: "julgado do STF proferido em 2024 pela relatoria de Dias Toffoli",
+   "Rcl de 2021, Rel. Min. Rosa Weber".
+
+2. **Genéricas**, que só aludem a uma fonte. Para contar como citação, a
+   alusão precisa ser específica: **um qualificador de autoridade e uma
+   âncora**, ou duas âncoras.
+
+   | | Exemplos |
+   |---|---|
+   | Qualificador | pacífica, consolidada, sumulado, reiterados, firme, recente, aplicável |
+   | Âncora | desta Corte, do STJ, sobre a matéria, à espécie, em sede de recurso repetitivo, de regência, na origem, que disciplina a prescrição |
+
+   Assim entram "jurisprudência pacífica desta Corte" e "normas de regência da
+   matéria". Ficam de fora frases soltas ou que só retomam outra citação,
+   como "a orientação dominante", "a orientação firmada no REsp X" e "os
+   dispositivos invocados".
+
+### Como adicionar uma regra
+
+Na maioria dos casos basta **acrescentar uma palavra ao `lexicon.py`**: uma
+nova classe, sigla ou tribunal passa a valer em todas as combinações. Depois,
+rode `python main.py --robustez` e confira que as três métricas (gabarito,
+robustez e ausência de novos FP) não pioraram.
 
 ---
 
 ## Como a avaliação funciona
 
-Uma citação só conta como acerto se **início, fim e trecho** forem
-exatamente iguais aos do gabarito. Acerto parcial conta como erro.
+Por padrão o projeto usa o **mesmo critério da avaliação oficial**: previsão
+e gabarito formam um par quando a sobreposição dos intervalos (IoU) é de pelo
+menos 50%, e cada citação entra em no máximo um par. Com `--exato`, só conta
+acerto quando início, fim e trecho são idênticos.
 
 | Coluna | Significado |
 |---|---|
 | `Gold` | Citações esperadas no gabarito |
 | `Pred` | Citações encontradas pelo detector |
-| `TP` | Acertos exatos |
-| `FP` | Encontradas, mas que não estão no gabarito |
+| `TP` | Acertos |
+| `FP` | Encontradas, mas sem par no gabarito |
 | `FN` | Estão no gabarito, mas não foram encontradas |
 
-- **Precisão** = TP / Pred — das que encontrei, quantas estão certas.
-- **Recall** = TP / Gold — das que existiam, quantas encontrei.
+- **Precisão** = TP / Pred: das que encontrei, quantas estão certas.
+- **Recall** = TP / Gold: das que existiam, quantas encontrei.
 - **F1** = média harmônica entre as duas.
 
 ---
 
 ## Resultado atual
 
-```text
-Total de documentos: 26
-Documentos N1: 13
-Documentos N2: 13
+| Métrica | Regras antigas | Regras atuais |
+|---|---|---|
+| F1 no gabarito, critério oficial (IoU ≥ 0,5) | 0,8219 | **0,9911** |
+| F1 no gabarito, critério exato | 0,6936 | **0,9733** |
+| F1 nível 1 / nível 2 | 0,84 / 0,80 | **1,00 / 0,98** |
+| Robustez: variantes ruidosas encontradas | 70,4% | **99,1%** |
+| Frases escritas fora do gabarito: positivos encontrados | 23 / 36 | **36 / 36** |
+| Frases escritas fora do gabarito: distratores com FP | 1 / 19 | **0 / 19** |
+| `tipo` (lei/jurisprudência) correto nos acertos | não havia | **223 / 223** |
 
-Documento         Gold  Pred    TP    FP    FN
-----------------------------------------------
-gen_n1_001          10     8     7     1     3
-...
-----------------------------------------------
-TOTAL              225   196   146    50    79
+Os 2 erros restantes no gabarito não são do detector: no documento
+`gen_n2_010`, seis anotações têm offsets deslocados em relação ao texto (o
+trecho anotado não está na posição indicada), e duas delas não chegam a 50%
+de sobreposição com a citação correta.
 
-Precisão: 0.7449
-Recall:   0.6489
-F1:       0.6936
-```
+---
 
-Onde há mais espaço para melhorar:
+## Como evitamos sobreajuste ao goldenset
 
-- a maior parte dos FN são **jurisprudências incompletas**, descritas sem
-  número (ex.: "julgado do STF proferido em 2024 pela relatoria de…");
-- os padrões genéricos de jurisprudência e de precedentes concentram boa
-  parte dos FP e podem ficar mais restritos.
+O conjunto oficial é oculto, então acertar o goldenset não basta: uma regra
+pode decorar os 225 exemplos e falhar no resto. Três cuidados:
+
+1. **Regras descrevem estrutura, não exemplos.** Os padrões são montados a
+   partir de vocabulário do domínio (`lexicon.py`) e das variações descritas
+   no regulamento (abreviação, formatação do número, separador de UF, OCR,
+   quebras de linha). Nenhum trecho do gabarito foi copiado para as regras.
+2. **Teste de robustez (`--robustez`).** Cada citação do gabarito recebe
+   variações aleatórias de superfície, como `REsp` → `Rec. Esp.`,
+   `1.741.784` → `1741784`, `/PR` → `(PR)`, `1` → `l` e espaço → quebra de
+   linha. A variante é recolocada no documento e o teste verifica se o
+   detector ainda a encontra. Isso mede se a regra generaliza para formas
+   que não estão no gabarito.
+3. **Texto nunca visto.** O detector foi rodado sobre as 1.000 decisões reais
+   da base canônica e sobre frases escritas à mão, com citações e com os
+   distratores do regulamento (OAB, fls., valor da causa, CNPJ, protocolo).
+   As capturas foram revisadas por amostragem.
 
 ---
 

@@ -199,19 +199,6 @@ As métricas do exemplo são ilustrativas.
 - recall: proporção das citações esperadas que foram encontradas;
 - F1: equilíbrio entre precisão e recall.
 
-## Testes e qualidade
-
-```bash
-pytest -q
-ruff check .
-ruff format --check .
-```
-
-Para aplicar a formatação automaticamente:
-
-```bash
-ruff format .
-```
 
 ## Cuidados contra superajuste
 
@@ -224,10 +211,3 @@ ruff format .
 - treino e validação devem ser separados por documento;
 - alterações devem ser avaliadas por TP, FP, FN e F1, não apenas pelo total de
   citações encontradas.
-
-## Próximas etapas
-
-- registrar qual padrão originou cada candidato apenas para diagnóstico;
-- produzir relatórios de falsos positivos e falsos negativos por família;
-- avaliar regras genéricas separadamente das regras estruturadas;
-- implementar a classificação somente após estabilizar a extração.

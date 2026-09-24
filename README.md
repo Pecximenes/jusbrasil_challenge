@@ -1,77 +1,203 @@
-# Etapa 1 — Leitura dos documentos
+# Extração de citações jurídicas — BRACIS 2026
 
-Implementação simplificada da leitura e separação dos documentos do Challenge Jusbrasil × BRACIS 2026.
+Projeto para leitura dos documentos do Challenge Jusbrasil × BRACIS 2026,
+extração de citações jurídicas e avaliação por correspondência exata com o
+`goldenset.csv`.
+
+A etapa atual apenas localiza as citações. Ela não classifica o trecho como
+lei ou jurisprudência e não determina se a referência é real, inventada ou
+incompleta.
+
+## Funcionalidades
+
+- carrega todos os arquivos `.txt` de um diretório;
+- separa os documentos entre N1 e N2;
+- ignora o cabeçalho sem alterar o texto original;
+- extrai processos, números CNJ, súmulas e dispositivos legais;
+- aceita variações de espaços, quebras de linha e alguns ruídos de OCR;
+- detecta referências jurídicas incompletas por padrões linguísticos;
+- remove candidatos sobrepostos, mantendo o trecho mais completo;
+- preserva os índices absolutos `inicio` e `fim`;
+- compara as previsões com o goldenset;
+- calcula precisão, recall e F1.
 
 ## Estrutura
 
 ```text
-src/bracis_reader/
-├── models.py
-├── directory_loader.py
-└── level_splitter.py
+.
+├── data/
+│   └── txt/                         # Documentos jurídicos
+├── script/
+│   └── goldenset.csv                # Anotações de referência
+├── src/
+│   └── bracis_reader/
+│       ├── __init__.py              # API pública do pacote
+│       ├── application.py           # Orquestração do pipeline
+│       ├── body_extractor.py        # Localização do início do corpo
+│       ├── citation_detector.py     # Aplicação das regex
+│       ├── citation_patterns.py     # Catálogo de padrões
+│       ├── directory_loader.py      # Leitura dos arquivos TXT
+│       ├── evaluation.py            # TP, FP, FN e métricas
+│       ├── goldenset.py             # Leitura do goldenset
+│       ├── level_splitter.py        # Separação N1/N2
+│       ├── models.py                # Modelos Pydantic
+│       ├── overlap_resolver.py      # Remoção de sobreposições
+│       └── reporting.py             # Tabela exibida no terminal
+├── main.py                          # Ponto de entrada
+└── pyproject.toml                   # Dependências e ferramentas
 ```
 
-## Responsabilidades
+## Arquitetura
+
+O projeto segue responsabilidade única e inversão de dependência de forma
+simples. O fluxo principal depende de componentes pequenos e substituíveis:
+
+```text
+main.py
+   ↓
+CitationExtractionApplication
+   ├── TextDirectoryLoader
+   ├── DocumentLevelSplitter
+   ├── CitationDetector
+   │      ├── DocumentBodyExtractor
+   │      ├── CitationPatternRegistry
+   │      └── CitationOverlapResolver
+   ├── GoldensetLoader
+   ├── CitationEvaluator
+   └── ConsoleReportPrinter
+```
 
 ### `TextDirectoryLoader`
 
-- recebe o caminho da pasta `txt`;
-- encontra todos os arquivos `.txt`;
-- lê o conteúdo em UTF-8;
-- utiliza o nome do arquivo como `documento_id`;
-- devolve uma lista com todos os documentos.
+Lê os arquivos `.txt` em UTF-8, usa o nome do arquivo como `documento_id` e
+preserva o texto original, inclusive as quebras de linha.
 
 ### `DocumentLevelSplitter`
 
-- recebe a lista carregada;
-- identifica o nível pelo nome do arquivo;
-- separa os documentos em duas listas;
-- retorna primeiro N1 e depois N2.
+Separa documentos com `_n1_` e `_n2_` no nome. A separação é usada somente
+para estatísticas; o detector funciona da mesma forma nos dois níveis.
 
-## Utilização
+### `DocumentBodyExtractor`
+
+Localiza o corpo após duas linhas vazias consecutivas. O cabeçalho não é
+apagado: o detector pesquisa apenas no corpo e soma o deslocamento inicial ao
+resultado. Dessa forma, os índices continuam referentes ao documento inteiro.
+
+### `CitationPatternRegistry`
+
+Centraliza todas as expressões regulares. Os padrões estão separados em:
+
+- estruturados: processos, CNJ, súmulas, artigos e códigos;
+- tolerantes a OCR: espaços, separadores e caracteres confundidos;
+- genéricos: referências incompletas, como entendimento sumular ou norma de
+  regência.
+
+Os nomes dos padrões são internos e não classificam a saída.
+
+### `CitationDetector`
+
+Aplica os padrões ao corpo do documento e cria objetos `CitationCandidate`.
+O construtor permite injetar padrões, extrator de corpo e resolvedor de
+sobreposição, facilitando testes e futuras alterações.
+
+### `CitationOverlapResolver`
+
+Quando duas regex encontram intervalos que se sobrepõem, mantém o candidato
+mais longo. Isso evita retornar separadamente o número CNJ e a citação completa
+que contém esse número.
+
+### `GoldensetLoader`
+
+Lê o CSV e agrupa as anotações por `documento_id`. Sequências textuais `\n` do
+CSV são convertidas para quebras de linha reais antes da comparação.
+
+### `CitationEvaluator`
+
+Compara cada previsão pela chave exata:
 
 ```python
-from bracis_reader import DocumentLevelSplitter, TextDirectoryLoader
-
-loader = TextDirectoryLoader("data/txt")
-documents = loader.load()
-
-splitter = DocumentLevelSplitter()
-documents_n1, documents_n2 = splitter.split(documents)
+(inicio, fim, trecho)
 ```
 
-Resultado:
+Uma detecção parcialmente correta não conta como acerto.
+
+### `ConsoleReportPrinter`
+
+Exibe uma linha por documento e as métricas agregadas.
+
+## Modelos
+
+### `TextDocument`
 
 ```python
-documents_n1  # gen_n1_001, gen_n1_002, ...
-documents_n2  # gen_n2_001, gen_n2_002, ...
+{
+    "documento_id": "gen_n1_001",
+    "texto": "conteúdo integral do documento",
+}
 ```
 
-## Fluxo
+### `CitationCandidate`
 
-```text
-Pasta txt
-   ↓
-TextDirectoryLoader.load()
-   ↓
-Lista com todos os documentos
-   ↓
-DocumentLevelSplitter.split()
-   ↓
-documents_n1 + documents_n2
+```python
+{
+    "inicio": 797,
+    "fim": 820,
+    "trecho": "Reclamação nº 66.516/RO",
+}
 ```
 
-## Instalação
+`fim` é exclusivo. Todo resultado deve respeitar:
+
+```python
+documento.texto[citacao.inicio : citacao.fim] == citacao.trecho
+```
+
+## Instalação no Ubuntu
 
 ```bash
+sudo apt update
+sudo apt install python3 python3-venv python3-pip
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 ```
 
 ## Execução
 
+Com os documentos em `data/txt` e o CSV em `script/goldenset.csv`:
+
 ```bash
 python main.py
 ```
+
+Exemplo de saída:
+
+```text
+Documento         Gold  Pred    TP    FP    FN
+----------------------------------------------
+gen_n1_001          10     8     8     0     2
+...
+----------------------------------------------
+TOTAL               225   176   150    26    75
+
+Precisão: 0.8523
+Recall:   0.6667
+F1:       0.7481
+```
+
+As métricas do exemplo são ilustrativas.
+
+## Significado das métricas
+
+- `Gold`: quantidade esperada no goldenset;
+- `Pred`: quantidade extraída pelo detector;
+- `TP`: intervalo e trecho exatamente corretos;
+- `FP`: previsão sem correspondência exata;
+- `FN`: citação esperada que não foi encontrada;
+- precisão: proporção das previsões que estão corretas;
+- recall: proporção das citações esperadas que foram encontradas;
+- F1: equilíbrio entre precisão e recall.
 
 ## Testes e qualidade
 
@@ -81,4 +207,27 @@ ruff check .
 ruff format --check .
 ```
 
-O projeto continua seguindo PEP 8 e o princípio de responsabilidade única: uma classe carrega os arquivos e outra realiza a separação por nível.
+Para aplicar a formatação automaticamente:
+
+```bash
+ruff format .
+```
+
+## Cuidados contra superajuste
+
+- nenhuma regra depende do `documento_id`;
+- nenhuma regra usa uma posição fixa;
+- os padrões estruturados representam formatos jurídicos reutilizáveis;
+- regras de OCR tratam categorias de ruído, não números específicos;
+- padrões genéricos devem ser monitorados, pois têm maior risco de falso
+  positivo;
+- treino e validação devem ser separados por documento;
+- alterações devem ser avaliadas por TP, FP, FN e F1, não apenas pelo total de
+  citações encontradas.
+
+## Próximas etapas
+
+- registrar qual padrão originou cada candidato apenas para diagnóstico;
+- produzir relatórios de falsos positivos e falsos negativos por família;
+- avaliar regras genéricas separadamente das regras estruturadas;
+- implementar a classificação somente após estabilizar a extração.

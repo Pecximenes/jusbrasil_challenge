@@ -12,6 +12,7 @@ from bracis_reader.evaluation.classification import (
 )
 from bracis_reader.evaluation.evaluator import CitationEvaluator, EvaluationSummary
 from bracis_reader.evaluation.goldenset import GoldensetLoader, load_annotations
+from bracis_reader.evaluation.official import official_score
 from bracis_reader.extraction.detector import CitationDetector
 from bracis_reader.ingestion.directory_loader import TextDirectoryLoader
 from bracis_reader.ingestion.level_splitter import DocumentLevelSplitter
@@ -104,10 +105,12 @@ class CitationExtractionApplication:
                 criterion=self._evaluator.criterion,
             )
             if results:
+                annotations = load_annotations(goldenset_path)
                 classification_summary = ClassificationEvaluator().evaluate(
-                    results, load_annotations(goldenset_path)
+                    results, annotations
                 )
                 self._reporter.print_classification(classification_summary)
+                self._reporter.print_official(official_score(results, annotations))
 
         submission_path = None
         if output_directory is not None and results:

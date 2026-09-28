@@ -2,6 +2,7 @@
 
 from bracis_reader.evaluation.classification import ClassificationSummary
 from bracis_reader.evaluation.evaluator import DocumentEvaluation, EvaluationSummary
+from bracis_reader.evaluation.official import OfficialScore
 
 
 class ConsoleReportPrinter:
@@ -68,3 +69,14 @@ class ConsoleReportPrinter:
             )
         print(f"\nF1 macro:           {summary.macro_f1:.4f}")
         print(f"Tipo lei/juris:     {summary.tipo_corretos}/{summary.pares} corretos")
+
+    def print_official(self, score: OfficialScore) -> None:
+        """Nota com a métrica oficial do desafio (máximo 1,1)."""
+        print("\nNOTA OFICIAL (mesma fórmula do kaggle_metric.py; máximo 1.1)")
+        for level, item in score.levels.items():
+            classes = "  ".join(f"{c}={v:.4f}" for c, v in item.f1_per_class.items())
+            print(
+                f"  N{level}: macro-F1={item.macro_f1:.4f} ({classes})  "
+                f"tau={item.tau:.3f}  bônus={item.bonus:.4f}  nota={item.score:.5f}"
+            )
+        print(f"  NOTA FINAL: {score.final:.5f}")

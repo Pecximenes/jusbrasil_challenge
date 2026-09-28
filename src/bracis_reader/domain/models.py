@@ -1,5 +1,7 @@
 """Modelos utilizados na leitura e na detecção de citações."""
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
@@ -20,6 +22,8 @@ class CitationCandidate(BaseModel):
     inicio: int = Field(ge=0)
     fim: int = Field(gt=0)
     trecho: str = Field(min_length=1)
+    tipo: Literal["lei", "jurisprudencia"] | None = None
+    padrao: str | None = None
 
     @model_validator(mode="after")
     def validate_span(self) -> "CitationCandidate":
@@ -30,4 +34,28 @@ class CitationCandidate(BaseModel):
         if self.fim - self.inicio != len(self.trecho):
             raise ValueError("o tamanho do trecho deve corresponder ao intervalo")
 
+        return self
+
+
+Classificacao = Literal["real", "inventada", "incompleta"]
+
+
+class ClassifiedCitation(BaseModel):
+    """Citação com a classe decidida contra a base canônica."""
+
+    model_config = ConfigDict(frozen=True)
+
+    citacao: CitationCandidate
+    classificacao: Classificacao
+    id_canonico: int | None = None
+    confianca: float = Field(ge=0.0, le=1.0)
+    motivo: str = ""
+
+    @model_validator(mode="after")
+    def validate_resolution(self) -> "ClassifiedCitation":
+        """Só citações reais têm ``id_canonico``."""
+        if (self.classificacao == "real") != (self.id_canonico is not None):
+            raise ValueError(
+                "id_canonico é obrigatório para real e proibido nas demais"
+            )
         return self

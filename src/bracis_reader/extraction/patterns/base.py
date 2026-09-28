@@ -1,10 +1,10 @@
-"""Tipos e constantes compartilhados pelos catálogos de padrões."""
+"""Tipo compartilhado pelos catálogos de padrões."""
 
 import re
 from dataclasses import dataclass
+from typing import Literal
 
-FLAGS = re.IGNORECASE | re.VERBOSE
-SPACE = r"[ \t\r\n]+"
+CitationType = Literal["lei", "jurisprudencia"]
 
 
 @dataclass(frozen=True)
@@ -13,3 +13,4 @@ class CitationPattern:
 
     name: str
     expression: re.Pattern[str]
+    tipo: CitationType

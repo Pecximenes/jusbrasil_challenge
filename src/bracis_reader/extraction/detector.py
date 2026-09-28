@@ -59,6 +59,8 @@ class CitationDetector:
                         inicio=start,
                         fim=end,
                         trecho=original_text[start:end],
+                        tipo=pattern.tipo,
+                        padrao=pattern.name,
                     )
                 )
 

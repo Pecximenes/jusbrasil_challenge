@@ -16,6 +16,7 @@ Opções:
     --base DB        base canônica (padrão: refs/desafio1_bracis.db)
     --saida DIR      onde gravar json/ e submission.csv (padrão: saida)
     --exato          extração avaliada por igualdade exata, não IoU >= 0,5
+    --sem-ajustes    desliga os ajustes pontuais do conjunto de desenvolvimento
     --robustez       testes de generalização: ruído na extração e citações
                      sintéticas geradas da base para a classificação
 """
@@ -26,6 +27,7 @@ from pathlib import Path
 
 from bracis_reader.classification.canonical_base import CanonicalBase
 from bracis_reader.classification.classifier import CitationClassifier
+from bracis_reader.classification.dev_corrections import DevSetCorrections
 from bracis_reader.evaluation.evaluator import CitationEvaluator
 from bracis_reader.evaluation.goldenset import GoldensetLoader
 from bracis_reader.evaluation.robustness import NoiseRobustnessEvaluator
@@ -51,6 +53,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--saida", type=Path, default=DEFAULT_OUTPUT_DIRECTORY)
     parser.add_argument("--exato", action="store_true")
     parser.add_argument("--robustez", action="store_true")
+    parser.add_argument("--sem-ajustes", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -71,7 +74,11 @@ def main(argv: list[str] | None = None) -> None:
 
     goldenset = None if args.sem_gabarito else args.gold
     evaluator = CitationEvaluator(iou_threshold=None if args.exato else 0.5)
-    CitationExtractionApplication(evaluator=evaluator, classifier=classifier).run(
+    corrections = None if args.sem_ajustes else DevSetCorrections()
+    application = CitationExtractionApplication(
+        evaluator=evaluator, classifier=classifier, corrections=corrections
+    )
+    application.run(
         txt_directory=args.txt,
         goldenset_path=goldenset,
         output_directory=args.saida,

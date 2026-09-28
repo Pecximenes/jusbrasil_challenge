@@ -119,6 +119,7 @@ Gera `resultado/json/<documento_id>.json` e `resultado/submission.csv`.
 | `--exato` | Avalia a extração por igualdade exata (padrão: IoU ≥ 0,5, como na avaliação oficial) |
 | `--robustez` | Roda os testes de generalização (ver [Como evitamos sobreajuste](#como-evitamos-sobreajuste-ao-goldenset)) |
 | `--sem-ajustes` | Desliga os ajustes pontuais do conjunto de desenvolvimento (ver [Resultado atual](#resultado-atual)) |
+| `--calibrar` | Mostra a taxa de acerto de cada regra de classificação, usada para calibrar a confiança |
 
 ### 4. Lint
 
@@ -253,7 +254,8 @@ formada* e deixar cada parte tolerante às variações previstas no regulamento.
   E+REsp = EREsp) e cadeias do TST com hífen (`E-ED-RR`, `AgR-REspe`).
 - **UF** só aceita as 27 siglas reais, em qualquer separador (`/SP`, `- SP`,
   `(SP)`, `/ SP`).
-- Também: **súmulas** (`Súmula 83 do STJ`, `Súm. 7/STJ`, `Súmula Vinculante 10`),
+- Também: **súmulas** (`Súmula 83 do STJ`, `Súm. 7/STJ`, `Súmula Vinculante 10`,
+  `SV 10`, e na ordem inversa: `verbete nº 331 da Súmula do TST`),
   **temas** (`Tema 1.046 da repercussão geral`), **OJs** (`OJ 191 da SBDI-1`)
   e **números CNJ** soltos no corpo.
 
@@ -265,18 +267,24 @@ art./artigo NÚMERO [, § 1º | , I | , 'g' | , parágrafo único]... da|do LEI
 
 **LEI** pode ser lei numerada (`Lei nº 13.105/2015`, `Lei 8.078, de 1990`),
 qualquer "Código ..." (`Código de Defesa do Consumidor`, `Código Penal Militar`),
-a Constituição, a CLT por extenso, um estatuto ou uma sigla (`CPC`, `CF/88`).
+a Constituição (também "Carta Magna", "Lei Maior", `CRFB/88`), a CLT por
+extenso, um estatuto ou uma sigla (`CPC`, `CF/88`, `LC 64/90`).
 
 ### Citações sem número (`incomplete.py`)
 
 1. **Descritivas**, que dá para buscar na base por tribunal, ano e relator:
 
    ```text
-   DECISÃO [do TRIBUNAL] [, em|de ANO] [, relatoria de NOME]   (exige ano ou relator)
+   DECISÃO  +  pelo menos DOIS entre  TRIBUNAL · ANO · RELATOR  (em qualquer ordem)
    ```
 
    Ex.: "julgado do STF proferido em 2024 pela relatoria de Dias Toffoli",
-   "Rcl de 2021, Rel. Min. Rosa Weber".
+   "Rcl de 2021, Rel. Min. Rosa Weber", "acórdão proferido pelo STJ em 2019,
+   sob a relatoria do Min. X", "voto condutor do Ministro X no STF, em 2020".
+
+   Com um detalhe só, a frase costuma não ser citação ("o voto do Ministro
+   X", "julgado em 2018"). Por isso a regra exige dois. Assim ela não dispara
+   em nenhum de 250 acórdãos reais da base, que citam sempre com número.
 
 2. **Genéricas**, que só aludem a uma fonte. Para contar como citação, a
    alusão precisa ser específica: **um qualificador de autoridade e uma
@@ -368,10 +376,19 @@ Um artigo só é `real` se **lei e número** baterem: "art. 5º da CF" é real;
 
 ### 5. Confiança
 
-Cada classe sai com uma confiança de 0 a 1, usada no bônus de calibração. É
-alta quando a regra é direta (número achado ou ausente da base) e mais baixa
-quando há desempate ou dúvida de leitura (UF divergente, OCR no número,
-descrição sem correspondência).
+O bônus de calibração premia quem informa confiança compatível com a taxa
+real de acerto. Cada citação sai marcada com a **regra** que a classificou
+(`processo_real`, `sumula_inventada`, `descricao_varios`...), e a confiança é
+a taxa de acerto medida para aquela regra, com suavização de Laplace:
+`(acertos + 1) / (total + 2)`.
+
+A tabela fica em `classification/confidence.py`. Ela foi medida sobre 802
+citações (gabarito de desenvolvimento, sem ajustes, e dois lotes de teste;
+ver abaixo). Para recalcular com outro conjunto:
+
+```bash
+python -m bracis_reader --txt PASTA --gold CSV --sem-ajustes --calibrar
+```
 
 ---
 
@@ -474,6 +491,28 @@ a classe:
 
 Esses testes não usam o gabarito: medem se as regras funcionam para
 qualquer citação coerente com a base.
+
+**Lotes de documentos novos (fora do repositório):**
+
+Foram gerados dois lotes de 30 documentos (15 N1 + 15 N2) no estilo do
+desafio, com gabarito próprio: cabeçalho com distratores, citações reais
+sorteadas da base, inventadas, descritivas e genéricas, e ruído no nível 2.
+
+- **Lote A** expôs lacunas de redação: "proferido **pelo** STJ", "verbete nº
+  331 da Súmula do TST", "Carta Magna", OCR "m→rn" na classificação. As
+  regras foram corrigidas de forma genérica, sem copiar frases do lote.
+- **Lote B** foi escrito **antes** dessas correções, com outra semente e
+  outras redações, e rodado uma única vez no fim, como teste cego.
+
+| | Extração F1 | Falsos positivos | Classificação F1 macro |
+|---|---|---|---|
+| Lote A, antes das correções | 0,9301 | 0 | 0,8583 |
+| Lote A, depois | 0,9982 | 0 | 0,9978 |
+| **Lote B (cego)** | **0,9947** | **0** | **0,9942** |
+
+Os lotes foram escritos pela mesma pessoa que escreveu as regras, então
+medem variações previstas por ela; um lote escrito por outra pessoa da
+equipe seria um teste ainda mais independente.
 
 ---
 

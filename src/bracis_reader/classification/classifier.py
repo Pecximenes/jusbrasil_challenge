@@ -35,6 +35,7 @@ from bracis_reader.classification.catalog import (
     LAW_PATTERNS,
     SUMULAS,
 )
+from bracis_reader.classification.confidence import confidence_for
 from bracis_reader.classification.normalization import (
     cnj_justice_segment,
     strip_accents,
@@ -81,17 +82,24 @@ def _appeal_markers(text: str) -> set[str]:
 
 
 _YEAR = re.compile(r"\b(?:19|2[0O])[0-9OoIlSs]{2}\b")
+_TITLE = (
+    r"(?:exm[oa]\.?\s+(?:(?:sr|sra)\.?\s+)?)?"
+    r"(?:ministr[oa]|min\.|des\.|desembargador[a]?)"
+)
 _RAPPORTEUR = re.compile(
-    r"(?:relatoria\s+d\w{0,2}|relatad[oa]\s+pel[oa]|\brel(?:ator|atora)?\.?)"
-    r"(?:\s+(?:exm[oa]\.?\s+)?(?:(?:sr|sra)\.?\s+)?(?:ministr[oa]|min\.|des\.))?"
-    r"\s+(?P<nome>.+)$",
-    re.IGNORECASE | re.DOTALL,
+    r"(?:relatoria\s+d\w{0,2}|relatad[oa]\s+pel[oa]|\brel(?:ator|atora)?\.?"
+    rf"|\b(?:d[oa]|pel[oa])(?=\s+{_TITLE}))"
+    rf"(?:\s+{_TITLE}){{0,2}}"
+    # O nome é a sequência de palavras com inicial maiúscula que vem depois.
+    r"\s+(?P<nome>(?-i:[A-ZÀ-Ý][\wÀ-ÿ'’]+(?:\s+(?:(?:d[aeo]s?|D[AEOaeo]S?|e)\s+)?"
+    r"[A-ZÀ-Ý][\wÀ-ÿ'’]+)*))",
+    re.IGNORECASE,
 )
 # Número começa por dígito real, ou por letra-dígito seguida de dígito ("l86").
-_NUM = r"(?:[0-9]|[OoIlSs](?=[0-9]))[0-9OoIlSs.]*"
+_NUM = r"(?:[0-9]|[OoIlLSs](?=[.\s]?[0-9º°]))[0-9OoIlLSs.]*"
 _ARTICLE_NUMBER = re.compile(rf"art(?:igo)?s?\.?\s*({_NUM})", re.I)
 _SUMULA_NUMBER = re.compile(
-    rf"(?:mula|m\.|enunciado|\bSV\b)\D{{0,20}}?\b({_NUM})", re.I
+    rf"(?:mula|rnula|m\.|rn\.|enunciado|verbete|\bSV\b)\D{{0,20}}?\b({_NUM})", re.I
 )
 
 
@@ -99,7 +107,7 @@ _SUMULA_NUMBER = re.compile(
 class _Resolution:
     classificacao: str
     id_canonico: int | None
-    confianca: float
+    regra: str  # chave da tabela de confiança calibrada
     motivo: str
 
 
@@ -176,8 +184,8 @@ class CitationClassifier:
             citacao=citation,
             classificacao=resolution.classificacao,
             id_canonico=resolution.id_canonico,
-            confianca=resolution.confianca,
-            motivo=resolution.motivo,
+            confianca=confidence_for(resolution.regra),
+            motivo=f"{resolution.regra}: {resolution.motivo}",
         )
 
     def classify_many(
@@ -190,7 +198,9 @@ class CitationClassifier:
     def _by_process_number(self, trecho: str) -> _Resolution:
         keys = extract_numbers(trecho)
         if not keys:
-            return _Resolution("incompleta", None, 0.5, "sem número utilizável")
+            return _Resolution(
+                "incompleta", None, "processo_sem_numero", "sem número utilizável"
+            )
 
         feitos = {
             (feito.tribunal, feito.numero): feito
@@ -203,8 +213,8 @@ class CitationClassifier:
         )
 
         if not candidates:
-            confidence = 0.85 if ocr_used else 0.9
-            return _Resolution("inventada", None, confidence, "número fora da base")
+            rule = "processo_inventado_ocr" if ocr_used else "processo_inventado"
+            return _Resolution("inventada", None, rule, "número fora da base")
 
         if len(candidates) > 1:
             candidates = self._break_tie(trecho, keys, candidates)
@@ -212,18 +222,21 @@ class CitationClassifier:
         if len(candidates) == 1:
             feito = candidates[0]
             uf = extract_uf(trecho)
-            confidence = 0.95
+            rule = "processo_real_ocr" if ocr_used else "processo_real"
             if uf and feito.ufs and uf not in feito.ufs:
-                confidence = 0.6  # número existe, mas a UF citada diverge
+                rule = "processo_real_uf_divergente"
             return _Resolution(
                 "real",
                 self._best_record(trecho, feito),
-                confidence,
+                rule,
                 f"feito {feito.tribunal}",
             )
 
         return _Resolution(
-            "incompleta", None, 0.6, f"{len(candidates)} feitos com o mesmo número"
+            "incompleta",
+            None,
+            "processo_ambiguo",
+            f"{len(candidates)} feitos com o mesmo número",
         )
 
     @staticmethod
@@ -263,7 +276,7 @@ class CitationClassifier:
     def _by_sumula(self, trecho: str) -> _Resolution:
         match = _SUMULA_NUMBER.search(trecho)
         if not match:
-            return _Resolution("incompleta", None, 0.6, "súmula sem número")
+            return _Resolution("incompleta", None, "sumula_sem_numero", "sem número")
         numero = int(to_digits(match.group(1)) or 0)
         vinculante = bool(re.search(r"vinculante|\bsv\b", _plain(trecho)))
         court = _court_mentioned(trecho) or ("STF" if vinculante else None)
@@ -276,27 +289,39 @@ class CitationClassifier:
             and (court is None or tribunal == court)
         ]
         if len(found) == 1:
-            return _Resolution("real", found[0], 0.95, "súmula do catálogo")
+            return _Resolution("real", found[0], "sumula_real", "súmula do catálogo")
         if not found:
-            return _Resolution("inventada", None, 0.9, "súmula fora da base")
-        return _Resolution("incompleta", None, 0.6, "súmula sem tribunal definido")
+            return _Resolution("inventada", None, "sumula_inventada", "fora da base")
+        return _Resolution(
+            "incompleta", None, "sumula_ambigua", "sem tribunal definido"
+        )
 
     def _by_dispositivo(self, trecho: str) -> _Resolution:
         match = _ARTICLE_NUMBER.search(trecho)
         if not match:
-            return _Resolution("incompleta", None, 0.6, "artigo sem número")
+            return _Resolution("incompleta", None, "artigo_sem_numero", "sem número")
         artigo = int(to_digits(match.group(1)) or 0)
         law_text = _plain(trecho[match.end() :])
+        # "Complernentar" -> "Complementar": desfaz a troca m -> rn do OCR.
+        variants = (law_text, law_text.replace("rn", "m"))
         lei = next(
-            (law for law, pattern in LAW_PATTERNS if re.search(pattern, law_text)),
+            (
+                law
+                for law, pattern in LAW_PATTERNS
+                if any(re.search(pattern, text) for text in variants)
+            ),
             None,
         )
         if lei is None:
-            return _Resolution("inventada", None, 0.85, "diploma fora da base")
+            return _Resolution(
+                "inventada", None, "artigo_lei_fora", "diploma fora da base"
+            )
         record_id = self._dispositivos.get((lei, artigo))
         if record_id is None:
-            return _Resolution("inventada", None, 0.9, f"art. {artigo} do {lei} fora")
-        return _Resolution("real", record_id, 0.95, f"art. {artigo} do {lei}")
+            return _Resolution(
+                "inventada", None, "artigo_inexistente", f"art. {artigo} do {lei} fora"
+            )
+        return _Resolution("real", record_id, "artigo_real", f"art. {artigo} do {lei}")
 
     def _by_description(self, trecho: str) -> _Resolution:
         year_match = _YEAR.search(trecho)
@@ -308,17 +333,28 @@ class CitationClassifier:
         feitos = self._base.count_described(court, ano, relator)
         if len(feitos) == 1:
             feito = feitos[0]
-            return _Resolution("real", min(feito.ids), 0.6, "descrição única na base")
+            return _Resolution(
+                "real", min(feito.ids), "descricao_unica", "descrição única na base"
+            )
         if not feitos:
             # Pode ser nome com ruído que não casou; o regulamento chamaria de
             # inventada, mas a leitura da descrição é incerta demais.
-            return _Resolution("incompleta", None, 0.5, "descrição sem correspondência")
-        return _Resolution("incompleta", None, 0.9, f"{len(feitos)} feitos possíveis")
+            return _Resolution(
+                "incompleta",
+                None,
+                "descricao_sem_correspondencia",
+                "sem correspondência",
+            )
+        return _Resolution(
+            "incompleta", None, "descricao_varios", f"{len(feitos)} feitos possíveis"
+        )
 
     @staticmethod
     def _not_in_base(trecho: str) -> _Resolution:
-        return _Resolution("inventada", None, 0.8, "tipo de precedente fora da base")
+        return _Resolution(
+            "inventada", None, "tema_oj", "tipo de precedente fora da base"
+        )
 
     @staticmethod
     def _generic(trecho: str) -> _Resolution:
-        return _Resolution("incompleta", None, 0.9, "sem identificador")
+        return _Resolution("incompleta", None, "generica", "sem identificador")

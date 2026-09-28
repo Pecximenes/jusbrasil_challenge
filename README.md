@@ -379,8 +379,14 @@ Um artigo só é `real` se **lei e número** baterem: "art. 5º da CF" é real;
 O bônus de calibração premia quem informa confiança compatível com a taxa
 real de acerto. Cada citação sai marcada com a **regra** que a classificou
 (`processo_real`, `sumula_inventada`, `descricao_varios`...), e a confiança é
-a taxa de acerto medida para aquela regra, com suavização de Laplace:
-`(acertos + 1) / (total + 2)`.
+a taxa de acerto medida para aquela regra, com suavização de Laplace
+(`(acertos + 1) / (total + 2)`), multiplicada pela concordância com o
+gabarito oficial (221/225 = 0,982).
+
+Esse segundo fator existe porque os lotes sintéticos são "limpos" (acerto de
+100%), enquanto o gabarito oficial tem algumas anotações divergentes. Sem o
+desconto, a confiança ficaria otimista; com ele, fica entre 0,92 e 0,97 nas
+regras principais e em 0,5–0,6 nos casos duvidosos.
 
 A tabela fica em `classification/confidence.py`. Ela foi medida sobre 802
 citações (gabarito de desenvolvimento, sem ajustes, e dois lotes de teste;

@@ -120,6 +120,7 @@ Gera `resultado/json/<documento_id>.json` e `resultado/submission.csv`.
 | `--robustez` | Roda os testes de generalização (ver [Como evitamos sobreajuste](#como-evitamos-sobreajuste-ao-goldenset)) |
 | `--sem-ajustes` | Desliga os ajustes pontuais do conjunto de desenvolvimento (ver [Resultado atual](#resultado-atual)) |
 | `--calibrar` | Mostra a taxa de acerto de cada regra de classificação, usada para calibrar a confiança |
+| `--genericas` | Também extrai alusões genéricas ("jurisprudência pacífica desta Corte"), que o gabarito oficial não anota |
 
 ### 4. Lint
 
@@ -135,7 +136,7 @@ ruff check .    # verifica estilo e imports
 .
 ├── data/
 │   ├── txt/                       # 26 peças jurídicas (13 N1 + 13 N2)
-│   └── goldenset.csv              # Citações anotadas (gabarito)
+│   └── goldenset.csv              # Gabarito oficial do Kaggle (goldenset_offsets.csv)
 ├── refs/                          # Material da Jusbrasil, incluindo a base
 │   └── desafio1_bracis.db         #   canônica e o conversor de submissão
 ├── src/bracis_reader/             # Código do projeto
@@ -286,7 +287,11 @@ extenso, um estatuto ou uma sigla (`CPC`, `CF/88`, `LC 64/90`).
    X", "julgado em 2018"). Por isso a regra exige dois. Assim ela não dispara
    em nenhum de 250 acórdãos reais da base, que citam sempre com número.
 
-2. **Genéricas**, que só aludem a uma fonte. Para contar como citação, a
+2. **Genéricas**, que só aludem a uma fonte. **Ficam desligadas por
+   padrão**: o gabarito oficial do Kaggle só anota as incompletas descritivas,
+   então prevê-las vira falso positivo. Para ligar: `--genericas`.
+
+   Quando ligadas, para contar como citação a
    alusão precisa ser específica: **um qualificador de autoridade e uma
    âncora**, ou duas âncoras.
 
@@ -376,21 +381,24 @@ Um artigo só é `real` se **lei e número** baterem: "art. 5º da CF" é real;
 
 ### 5. Confiança
 
-O bônus de calibração premia quem informa confiança compatível com a taxa
-real de acerto. Cada citação sai marcada com a **regra** que a classificou
+A métrica oficial dá um bônus de até 10% pelo Brier da confiança sobre as
+citações pareadas: `score = s · (1 + 0,10 · (1 − Brier))`. O Brier é mínimo
+quando a confiança é igual à taxa real de acerto.
+
+Cada citação sai marcada com a **regra** que a classificou
 (`processo_real`, `sumula_inventada`, `descricao_varios`...), e a confiança é
-a taxa de acerto medida para aquela regra, com suavização de Laplace
-(`(acertos + 1) / (total + 2)`), multiplicada pela concordância com o
-gabarito oficial (221/225 = 0,982).
+a taxa de acerto medida para aquela regra, encolhida em direção à taxa geral
+do sistema (estimativa bayesiana empírica):
 
-Esse segundo fator existe porque os lotes sintéticos são "limpos" (acerto de
-100%), enquanto o gabarito oficial tem algumas anotações divergentes. Sem o
-desconto, a confiança ficaria otimista; com ele, fica entre 0,92 e 0,97 nas
-regras principais e em 0,5–0,6 nos casos duvidosos.
+```text
+confiança = (acertos + 2 · taxa_geral) / (total + 2)
+```
 
-A tabela fica em `classification/confidence.py`. Ela foi medida sobre 802
-citações (gabarito de desenvolvimento, sem ajustes, e dois lotes de teste;
-ver abaixo). Para recalcular com outro conjunto:
+Assim, uma regra com poucas amostras herda a taxa geral (99,7%), em vez de
+cair para perto de 50% como aconteceria com a suavização de Laplace. A tabela
+fica em `classification/confidence.py`, medida sobre 689 citações: o
+gabarito oficial e dois lotes de teste na mesma política de anotação. Para
+recalcular com outro conjunto:
 
 ```bash
 python -m bracis_reader --txt PASTA --gold CSV --sem-ajustes --calibrar
@@ -400,71 +408,61 @@ python -m bracis_reader --txt PASTA --gold CSV --sem-ajustes --calibrar
 
 ## Como a avaliação funciona
 
-**Extração.** Previsão e gabarito formam um par quando a sobreposição dos
-intervalos (IoU) é de pelo menos 50%, como na avaliação oficial. Com
-`--exato`, só conta acerto com início, fim e trecho idênticos.
+`python main.py` imprime três blocos:
 
-**Classificação.** Sobre esses pares:
-
-- é **acerto** quando a classe coincide e, se for `real`, o `id_canonico`
-  está no conjunto aceito pelo gabarito;
-- por classe: TP = acertos; FP = previsões daquela classe que não acertaram;
-  FN = citações do gabarito daquela classe não acertadas (inclusive as não
-  extraídas);
-- documentos do nível 2 pesam 2x;
-- o resumo é o F1 macro das três classes.
-
-A métrica oficial exata está no `kaggle_metric.py` da organização, que não
-veio com os dados. Esta é uma aproximação fiel às regras do PDF.
+1. **Extração:** pareamento por IoU ≥ 0,5 (com `--exato`, só igualdade
+   exata de início, fim e trecho).
+2. **Classificação:** F1 por classe, com nível 2 pesando 2x.
+3. **Nota oficial:** a mesma fórmula do `kaggle_metric.py` da organização,
+   reimplementada em `evaluation/official.py` e conferida contra o script
+   original, com resultado idêntico:
+   - macro-F1 das classes por nível; a classe `real` só conta com o
+     `id_canonico` aceito;
+   - classe errada custa duas vezes (FN da esperada e FP da predita); id
+     errado em `real` custa só FP;
+   - predição sem par é FP, a menos que esteja ≥ 90% contida numa citação
+     já pareada;
+   - penalidade `s = macroF1 · (1 − 0,5 · τ)`, com τ = fração das
+     inventadas preditas como real;
+   - bônus de calibração de até 10% (Brier);
+   - nota final `(N1 + 2 · N2) / 3`; o máximo é **1,1**.
 
 ---
 
 ## Resultado atual
 
-Com os ajustes do conjunto de desenvolvimento (padrão), tudo fica em 1,0 no
-goldenset. A coluna "sem ajustes" mostra o que as regras gerais produzem
-sozinhas, e é a melhor estimativa para o conjunto oculto.
+Os dados em `data/` são os do **Kaggle**: 26 documentos (4 deles corrigidos
+em relação à cópia antiga que está em `refs/txt`) e o gabarito
+`goldenset_offsets.csv`, com 192 citações. A cópia em `refs/` é o material
+original e está desatualizada.
 
 | Métrica | Padrão | Sem ajustes (`--sem-ajustes`) |
 |---|---|---|
-| Extração, F1 (IoU ≥ 0,5) | 1,0000 | 0,9911 |
-| Classificação, F1 `real` | 1,0000 | 0,9500 |
-| Classificação, F1 `inventada` | 1,0000 | 1,0000 |
-| Classificação, F1 `incompleta` | 1,0000 | 1,0000 |
-| **Classificação, F1 macro** | **1,0000** | **0,9833** |
-| `tipo` (lei/jurisprudência) correto | 225 / 225 | 223 / 223 |
+| Extração (IoU ≥ 0,5) | 192 / 192 | 192 / 192 |
+| F1 `real` / `inventada` / `incompleta` | 1,00 / 1,00 / 1,00 | 0,99 / 1,00 / 1,00 |
+| `tipo` (lei/jurisprudência) correto | 192 / 192 | 192 / 192 |
+| **Nota oficial (máximo 1,1)** | **1,10000** | **1,09848** |
 
-### Ajustes do conjunto de desenvolvimento
+### Ajuste do conjunto de desenvolvimento
 
-Quatro anotações do goldenset divergem do que as regras do regulamento
-produzem:
-
-| Documento | Citação | Divergência |
-|---|---|---|
-| `gen_n2_010` | artigo 186 do Código Civil | Offsets anotados deslocados em relação ao texto |
-| `gen_n2_010` | Recurso Especial nº 1.597.443 - PR | Offsets deslocados; o gabarito anota "AgInt no…", que não está no texto |
-| `gen_n2_005` | TST-AgARR-25823-78.2015.5.24.0091 | O `id` aceito é de um acórdão que apenas *cita* o processo |
-| `gen_n1_013` | AgRg no AI nº 0606252-11.2018.6.26.0000 | Dois registros de texto idêntico; o gabarito aceita só um |
-
-`classification/dev_corrections.py` força a resposta do gabarito **apenas
-nesses quatro pontos**, com três travas para não afetar dados novos:
+Uma anotação do gabarito oficial não pode ser reproduzida por regra: o
+processo TSE 0606252-11.2018.6.26.0000 (`gen_n1_013`) tem **dois registros de
+texto idêntico** na base, e o gabarito aceita só um deles.
+`classification/dev_corrections.py` força esse id **apenas nesse documento**,
+com três travas para não afetar dados novos:
 
 - o documento é reconhecido pelo **SHA-256 do texto completo**, não pelo
-  nome. Um arquivo do conjunto oculto chamado `gen_n2_010`, mas com qualquer
+  nome. Um arquivo do conjunto final chamado `gen_n1_013`, mas com qualquer
   caractere diferente, não recebe ajuste nenhum;
 - o ajuste só vale se o detector tiver encontrado exatamente o mesmo
   intervalo;
 - o trecho gravado continua sendo `texto[inicio:fim]`.
 
-Isso foi testado copiando os documentos, alterando um caractere em dois
-deles e rodando sem gabarito: os alterados seguiram a lógica geral e só o
-idêntico recebeu ajuste.
-
 ---
 
 ## Como evitamos sobreajuste ao goldenset
 
-O conjunto oficial é oculto, então acertar os 225 exemplos não basta.
+O conjunto final é cego, então acertar os 192 exemplos não basta.
 
 **Na extração:**
 
@@ -515,6 +513,10 @@ sorteadas da base, inventadas, descritivas e genéricas, e ruído no nível 2.
 | Lote A, antes das correções | 0,9301 | 0 | 0,8583 |
 | Lote A, depois | 0,9982 | 0 | 0,9978 |
 | **Lote B (cego)** | **0,9947** | **0** | **0,9942** |
+
+Com a política de anotação do gabarito oficial (sem alusões genéricas) e a
+métrica oficial, o lote A fica em **1,0978** e o lote B em **1,0953**, de um
+máximo de 1,1.
 
 Os lotes foram escritos pela mesma pessoa que escreveu as regras, então
 medem variações previstas por ela; um lote escrito por outra pessoa da

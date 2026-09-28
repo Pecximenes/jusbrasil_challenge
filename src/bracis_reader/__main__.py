@@ -17,6 +17,7 @@ Opções:
     --saida DIR      onde gravar json/ e submission.csv (padrão: saida)
     --exato          extração avaliada por igualdade exata, não IoU >= 0,5
     --sem-ajustes    desliga os ajustes pontuais do conjunto de desenvolvimento
+    --calibrar       mostra a taxa de acerto de cada regra (para a confiança)
     --robustez       testes de generalização: ruído na extração e citações
                      sintéticas geradas da base para a classificação
 """
@@ -28,10 +29,12 @@ from pathlib import Path
 from bracis_reader.classification.canonical_base import CanonicalBase
 from bracis_reader.classification.classifier import CitationClassifier
 from bracis_reader.classification.dev_corrections import DevSetCorrections
+from bracis_reader.evaluation.calibration import laplace, measure_rules
 from bracis_reader.evaluation.evaluator import CitationEvaluator
-from bracis_reader.evaluation.goldenset import GoldensetLoader
+from bracis_reader.evaluation.goldenset import GoldensetLoader, load_annotations
 from bracis_reader.evaluation.robustness import NoiseRobustnessEvaluator
 from bracis_reader.evaluation.synthetic import SyntheticCitationEvaluator
+from bracis_reader.extraction.detector import CitationDetector
 from bracis_reader.ingestion.directory_loader import TextDirectoryLoader
 from bracis_reader.pipeline import CitationExtractionApplication
 
@@ -54,6 +57,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--exato", action="store_true")
     parser.add_argument("--robustez", action="store_true")
     parser.add_argument("--sem-ajustes", action="store_true")
+    parser.add_argument("--calibrar", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -84,6 +88,9 @@ def main(argv: list[str] | None = None) -> None:
         output_directory=args.saida,
     )
 
+    if args.calibrar and classifier is not None and goldenset is not None:
+        _print_calibration(args.txt, goldenset, classifier)
+
     if args.robustez and goldenset is not None:
         documents = TextDirectoryLoader(args.txt).load()
         expected = GoldensetLoader().load(goldenset)
@@ -98,6 +105,22 @@ def main(argv: list[str] | None = None) -> None:
         synthetic = SyntheticCitationEvaluator(base, classifier).evaluate()
         for group, (hits, total) in synthetic.groups.items():
             print(f"  {group:<26}{hits:>5}/{total}")
+
+
+def _print_calibration(
+    txt: Path, goldenset: Path, classifier: CitationClassifier
+) -> None:
+    """Taxa de acerto por regra, sem os ajustes de desenvolvimento."""
+    documents = TextDirectoryLoader(txt).load()
+    detector = CitationDetector()
+    predictions = {
+        document.documento_id: classifier.classify_many(detector.detect(document))
+        for document in documents
+    }
+    stats = measure_rules(predictions, load_annotations(goldenset))
+    print("\nTaxa de acerto por regra (confiança sugerida com Laplace):")
+    for rule, (hits, total) in sorted(stats.items()):
+        print(f"  {rule:<32}{hits:>5}/{total:<5}{laplace(hits, total):.4f}")
 
 
 if __name__ == "__main__":

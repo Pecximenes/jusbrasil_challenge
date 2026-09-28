@@ -61,9 +61,15 @@ _CODE = (
     rf"{fuzzy_word('código')}"
     rf"(?:{SPACE}(?:{_OF}{SPACE})?{_CAPITALIZED}){{1,4}}"
 )
-_CONSTITUTION = (
-    rf"{fuzzy_word('constituição')}"
-    rf"(?:{SPACE}(?:{fuzzy_word('da')}{SPACE})?{_CAPITALIZED}){{0,2}}"
+_CONSTITUTION = any_of(
+    [
+        rf"{fuzzy_word('constituição')}"
+        rf"(?:{SPACE}(?:{fuzzy_word('da')}{SPACE})?{_CAPITALIZED}){{0,2}}"
+        rf"(?:{SPACE}{fuzzy_word('de')}{SPACE}(?:19)?88)?",
+        any_phrase(
+            ("Carta Magna", "Carta da República", "Carta Política", "Lei Maior")
+        ),
+    ]
 )
 _CLT = fuzzy_phrase("Consolidação das Leis do Trabalho")
 _STATUTE = (

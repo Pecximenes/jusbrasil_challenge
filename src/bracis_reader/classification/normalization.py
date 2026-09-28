@@ -11,7 +11,7 @@ import unicodedata
 # Letra que o OCR confunde com dígito -> dígito original.
 OCR_TO_DIGIT = {
     "O": "0", "o": "0", "D": "0", "Q": "0",
-    "I": "1", "l": "1", "i": "1", "|": "1",
+    "I": "1", "l": "1", "L": "1", "i": "1", "|": "1",
     "Z": "2", "z": "2",
     "S": "5", "s": "5",
     "G": "6", "b": "6",

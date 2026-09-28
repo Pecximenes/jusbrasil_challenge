@@ -56,13 +56,26 @@ _TO = _words("à", "ao", "a", "aos", "às")
 # 1. Citações descritivas
 # ----------------------------------------------------------------------------
 
-_DECISION = any_of([any_phrase(DECISION_NOUNS), CLASS_EXPRESSION])
-_COURT_SPEC = rf"{_OF}{SPACE}{COURT}"
+_DECISION = any_of(
+    [
+        any_phrase(DECISION_NOUNS),
+        any_phrase(("entendimento", "julgamento", "voto condutor", "voto")),
+        CLASS_EXPRESSION,
+    ]
+)
+# Particípio que costuma ligar a decisão ao tribunal ou à data:
+# "acórdão proferido pelo STJ", "precedente firmado em 2020".
 _DECIDED = _words(
     "julgado", "julgada", "proferido", "proferida", "publicado", "publicada",
-    "prolatado", "prolatada",
+    "prolatado", "prolatada", "firmado", "firmada", "exarado", "exarada",
+    "fixado", "fixada", "realizado", "realizada", "lavrado", "lavrada",
 )  # fmt: skip
-_YEAR_SPEC = rf"(?:{_DECIDED}{SPACE})?{_words('em', 'de')}{SPACE}{YEAR}\b"
+_BY_OR_OF = _words("do", "da", "dos", "das", "pelo", "pela", "no", "na")
+_COURT_SPEC = rf"(?:{_DECIDED}{SPACE})?{_BY_OR_OF}{SPACE}{COURT}"
+_YEAR_SPEC = (
+    rf"(?:{_DECIDED}{SPACE})?{_words('em', 'de')}{SPACE}"
+    rf"(?:{_words('ano')}{SPACE}{_words('de')}{SPACE})?{YEAR}\b"
+)
 _NAME_WORD = case_sensitive(r"[A-ZÀ-Ý][A-Za-zÀ-ÿ'’]+")
 _NAME_LINK = case_sensitive(r"(?:de|da|do|dos|das|De|Da|Do|Dos|Das|DE|DA|DO|DOS|DAS|e)")
 _NAME = rf"{_NAME_WORD}(?:{SPACE}(?:{_NAME_LINK}{SPACE})?{_NAME_WORD}){{0,5}}"
@@ -82,23 +95,36 @@ _MINISTER = any_of(
 _HONORIFIC = (
     rf"(?:{_words('exmo', 'exma')}\.?{SPACE}(?:{_words('sr', 'sra')}\.?{SPACE})?)"
 )
+_TITLES = rf"(?:{SPACE}{_HONORIFIC})?(?:{SPACE}{_MINISTER}){{0,2}}"
 _RAPPORTEUR = (
     rf"(?:"
-    rf"(?:{_words('pela', 'sob', 'da', 'de', 'com')}{SPACE}(?:a{SPACE})?)?"
+    rf"(?:(?:{_words('pela', 'sob', 'da', 'de', 'com')}{SPACE}(?:a{SPACE})?)?"
     rf"{fuzzy_word('relatoria')}{SPACE}{_OF}"
     rf"|{_words('relatado', 'relatada')}{SPACE}{_words('pelo', 'pela')}"
-    rf"|{_words('rel', 'relator', 'relatora')}\.?"
-    rf")"
-    rf"(?:{SPACE}{_HONORIFIC})?(?:{SPACE}{_MINISTER})?{SPACE}{_NAME}"
+    rf"|{_words('rel', 'relator', 'relatora')}\.?)"
+    rf"{_TITLES}"
+    # "pelo Ministro X", "do Min. X": exige o título para não confundir
+    # com "do STF".
+    rf"|{_words('do', 'da', 'pelo', 'pela')}(?:{SPACE}{_HONORIFIC})?"
+    rf"(?:{SPACE}{_MINISTER}){{1,2}}"
+    rf"){SPACE}{_NAME}"
 )
 _SEP = r"\s*,?\s*"
+_DETAIL = rf"(?:{_COURT_SPEC}|{_YEAR_SPEC}|{_RAPPORTEUR})"
 
+# Decisão seguida de tribunal, ano e relator, em qualquer ordem, exigindo
+# pelo menos DOIS desses detalhes. Com um só, a frase costuma não ser uma
+# citação: "o voto do Ministro X", "julgado em 2018", "acórdão do STJ".
 # Não começa logo depois de um número: em "RE 1.234 AgR, Rel. Min. X" o
 # trecho "AgR, Rel. Min. X" é só o final de uma citação numerada.
+_TWO_DETAILS = (
+    rf"(?:{_SEP}{_COURT_SPEC}{_SEP}(?:{_YEAR_SPEC}|{_RAPPORTEUR})"
+    rf"|{_SEP}{_YEAR_SPEC}{_SEP}(?:{_RAPPORTEUR}|{_COURT_SPEC})"
+    rf"|{_SEP}{_RAPPORTEUR}{_SEP}(?:{_YEAR_SPEC}|{_COURT_SPEC}))"
+)
 DESCRIPTIVE_DECISION = (
     rf"(?<!\d\s)(?<![\d.])\b(?:{fuzzy_word('recente')}{SPACE})?{_DECISION}"
-    rf"(?:{SPACE}{_COURT_SPEC})?"
-    rf"(?:{_SEP}{_YEAR_SPEC}(?:{_SEP}{_RAPPORTEUR})?|{_SEP}{_RAPPORTEUR})"
+    rf"{_TWO_DETAILS}(?:{_SEP}{_DETAIL}){{0,2}}"
 )
 
 # ----------------------------------------------------------------------------

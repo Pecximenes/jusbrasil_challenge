@@ -26,6 +26,11 @@ COURT_NAMES = (
     "Tribunal Superior Eleitoral",
     "Superior Tribunal Militar",
     "tribunais superiores",
+    "Cortes Superiores",
+    "Corte Suprema",
+    "Superior Tribunal",
+    "Supremo Tribunal",
+    "Tribunal Pleno",
     "Corte Superior",
     "Corte Especial",
     "Corte",
@@ -143,5 +148,5 @@ DECISION_NOUNS = (
 LAW_ACRONYMS = (
     "CPC", "CPC/2015", "CPC/15", "CPC/73", "CPP", "CPM", "CPPM", "CLT", "CDC",
     "CTN", "CC", "CC/2002", "CF", "CF/88", "CF/1988", "ECA", "LINDB", "LEP",
-    "CTB",
+    "CTB", "CRFB", "CRFB/88", "CRFB/1988", "NCPC",
 )  # fmt: skip

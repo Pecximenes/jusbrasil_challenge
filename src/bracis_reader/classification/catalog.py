@@ -67,13 +67,13 @@ DISPOSITIVOS = (
 # minúsculas. "Lei Complementar 140/2011" não casa com LC 64, e um diploma
 # fora da lista (ex.: Lei 9.504/1997) simplesmente não está na base.
 LAW_PATTERNS: tuple[tuple[str, str], ...] = (
-    (CPC, r"processo civil|\bcpc\b|13\.?105"),
+    (CPC, r"processo civil|\bn?cpc\b|13\.?105"),
     (CPP, r"processo penal|\bcpp\b|3\.?689"),
     (CPM, r"penal militar|\bcpm\b|decreto-lei\D{0,6}1\.?001\b"),
     (CDC, r"defesa do consumidor|\bcdc\b|8\.?078"),
     (CE, r"codigo eleitoral|4\.?737"),
     (LC64, r"complementar\D{0,8}\b64\b|\blc\D{0,4}\b64\b|inelegibilidades"),
     (CLT, r"consolidacao das leis do trabalho|\bclt\b|5\.?452"),
-    (CF, r"constitui|\bcf\b|carta magna"),
+    (CF, r"constitui|\bcf\b|\bcrfb\b|carta (?:magna|da republica|politica)|lei maior"),
     (CC, r"codigo civil|\bcc\b|10\.?406"),
 )

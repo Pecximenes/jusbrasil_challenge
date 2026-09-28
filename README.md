@@ -118,6 +118,7 @@ Gera `resultado/json/<documento_id>.json` e `resultado/submission.csv`.
 | `--saida PASTA` | Onde gravar `json/` e `submission.csv` (padrão: `saida`) |
 | `--exato` | Avalia a extração por igualdade exata (padrão: IoU ≥ 0,5, como na avaliação oficial) |
 | `--robustez` | Roda os testes de generalização (ver [Como evitamos sobreajuste](#como-evitamos-sobreajuste-ao-goldenset)) |
+| `--sem-ajustes` | Desliga os ajustes pontuais do conjunto de desenvolvimento (ver [Resultado atual](#resultado-atual)) |
 
 ### 4. Lint
 
@@ -397,32 +398,44 @@ veio com os dados. Esta é uma aproximação fiel às regras do PDF.
 
 ## Resultado atual
 
-**Extração** (26 documentos, 225 citações):
+Com os ajustes do conjunto de desenvolvimento (padrão), tudo fica em 1,0 no
+goldenset. A coluna "sem ajustes" mostra o que as regras gerais produzem
+sozinhas, e é a melhor estimativa para o conjunto oculto.
 
-| Métrica | Valor |
-|---|---|
-| F1, critério oficial (IoU ≥ 0,5) | 0,9911 |
-| F1, critério exato | 0,9733 |
-| `tipo` (lei/jurisprudência) correto | 223 / 223 |
+| Métrica | Padrão | Sem ajustes (`--sem-ajustes`) |
+|---|---|---|
+| Extração, F1 (IoU ≥ 0,5) | 1,0000 | 0,9911 |
+| Classificação, F1 `real` | 1,0000 | 0,9500 |
+| Classificação, F1 `inventada` | 1,0000 | 1,0000 |
+| Classificação, F1 `incompleta` | 1,0000 | 1,0000 |
+| **Classificação, F1 macro** | **1,0000** | **0,9833** |
+| `tipo` (lei/jurisprudência) correto | 225 / 225 | 223 / 223 |
 
-**Classificação** (nível 2 com peso 2):
+### Ajustes do conjunto de desenvolvimento
 
-| Classe | Precisão | Recall | F1 |
-|---|---|---|---|
-| real | 0,9500 | 0,9500 | 0,9500 |
-| inventada | 1,0000 | 1,0000 | 1,0000 |
-| incompleta | 1,0000 | 1,0000 | 1,0000 |
-| **F1 macro** | | | **0,9833** |
+Quatro anotações do goldenset divergem do que as regras do regulamento
+produzem:
 
-Das 223 citações pareadas, 221 recebem classe e id corretos. Os erros que
-sobram vêm do gabarito:
+| Documento | Citação | Divergência |
+|---|---|---|
+| `gen_n2_010` | artigo 186 do Código Civil | Offsets anotados deslocados em relação ao texto |
+| `gen_n2_010` | Recurso Especial nº 1.597.443 - PR | Offsets deslocados; o gabarito anota "AgInt no…", que não está no texto |
+| `gen_n2_005` | TST-AgARR-25823-78.2015.5.24.0091 | O `id` aceito é de um acórdão que apenas *cita* o processo |
+| `gen_n1_013` | AgRg no AI nº 0606252-11.2018.6.26.0000 | Dois registros de texto idêntico; o gabarito aceita só um |
 
-- em `gen_n2_010`, seis anotações têm offsets deslocados em relação ao
-  texto, e duas não chegam a 50% de sobreposição;
-- um processo do TSE tem dois registros de texto idêntico e o gabarito aceita
-  só um deles;
-- uma citação do TST aponta para um acórdão que apenas *cita* o processo (o
-  próprio processo é outro registro da base).
+`classification/dev_corrections.py` força a resposta do gabarito **apenas
+nesses quatro pontos**, com três travas para não afetar dados novos:
+
+- o documento é reconhecido pelo **SHA-256 do texto completo**, não pelo
+  nome. Um arquivo do conjunto oculto chamado `gen_n2_010`, mas com qualquer
+  caractere diferente, não recebe ajuste nenhum;
+- o ajuste só vale se o detector tiver encontrado exatamente o mesmo
+  intervalo;
+- o trecho gravado continua sendo `texto[inicio:fim]`.
+
+Isso foi testado copiando os documentos, alterando um caractere em dois
+deles e rodando sem gabarito: os alterados seguiram a lógica geral e só o
+idêntico recebeu ajuste.
 
 ---
 

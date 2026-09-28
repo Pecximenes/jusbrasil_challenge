@@ -2,8 +2,8 @@
 
 from dataclasses import dataclass
 
-from bracis_reader.goldenset import CitationKey, GoldensetByDocument
-from bracis_reader.models import CitationCandidate, TextDocument
+from bracis_reader.domain.models import CitationCandidate, TextDocument
+from bracis_reader.evaluation.goldenset import CitationKey, GoldensetByDocument
 
 
 @dataclass(frozen=True)

@@ -2,12 +2,12 @@
 
 from pathlib import Path
 
-from bracis_reader.citation_detector import CitationDetector
-from bracis_reader.directory_loader import TextDirectoryLoader
-from bracis_reader.evaluation import CitationEvaluator, EvaluationSummary
-from bracis_reader.goldenset import GoldensetLoader
-from bracis_reader.level_splitter import DocumentLevelSplitter
-from bracis_reader.reporting import ConsoleReportPrinter
+from bracis_reader.evaluation.evaluator import CitationEvaluator, EvaluationSummary
+from bracis_reader.evaluation.goldenset import GoldensetLoader
+from bracis_reader.extraction.detector import CitationDetector
+from bracis_reader.ingestion.directory_loader import TextDirectoryLoader
+from bracis_reader.ingestion.level_splitter import DocumentLevelSplitter
+from bracis_reader.reporting.console import ConsoleReportPrinter
 
 
 class CitationExtractionApplication:

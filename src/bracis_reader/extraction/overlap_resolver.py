@@ -1,6 +1,6 @@
 """Resolução de candidatos de citação que ocupam o mesmo intervalo."""
 
-from bracis_reader.models import CitationCandidate
+from bracis_reader.domain.models import CitationCandidate
 
 
 class CitationOverlapResolver:

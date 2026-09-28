@@ -1,0 +1,9 @@
+# Os índices do goldenset contam quebras de linha LF.
+# Impede que o Git no Windows converta os documentos para CRLF.
+*.txt text eol=lf
+*.csv -text
+*.py  text eol=lf
+*.md  text eol=lf
+*.toml text eol=lf
+*.pdf binary
+*.db  binary

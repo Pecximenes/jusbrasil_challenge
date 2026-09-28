@@ -1,6 +1,6 @@
 """Apresentação dos resultados da avaliação no terminal."""
 
-from bracis_reader.evaluation import DocumentEvaluation, EvaluationSummary
+from bracis_reader.evaluation.evaluator import DocumentEvaluation, EvaluationSummary
 
 
 class ConsoleReportPrinter:

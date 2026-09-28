@@ -104,7 +104,7 @@ _DIGIT = rf"[0-9{re.escape(OCR_DIGIT_LETTERS)}]"
 # A letra-dígito inicial não pode vir colada a outra letra: em "Rcl 36.670" ou
 # "No 7001184", o "l" e o "o" são o fim de uma palavra, não um dígito.
 _GROUP = (
-    rf"(?:[0-9]|(?<![^\W\d_])[{re.escape(OCR_DIGIT_LETTERS)}](?=[.\s]?[0-9]))"
+    rf"(?:[0-9]|(?<![^\W\d_])[{re.escape(OCR_DIGIT_LETTERS)}](?=[.\s\-]{{0,2}}[0-9]))"
     rf"{_DIGIT}*"
 )
 
@@ -123,8 +123,11 @@ CNJ_NUMBER = (
     rf"{_CNJ_SEP}{_DIGIT}{_CNJ_SEP}{_DIGIT}{{2}}{_CNJ_SEP}{_DIGIT}{{4}}"
 )
 
-# Número curto (súmulas, temas, artigos): 83 | 1.022 | 2.680
-SHORT_NUMBER = rf"{_GROUP}(?:\.\s?{_DIGIT}{{3}})?"
+# Número ordinal de um dígito lido por OCR ("§ lº", "art. Sº").
+_OCR_ORDINAL = rf"(?<![^\W\d_])[{re.escape(OCR_DIGIT_LETTERS)}](?=\s?[º°])"
+
+# Número curto (súmulas, temas, artigos): 83 | 1.022 | 2.680 | lº
+SHORT_NUMBER = rf"(?:{_GROUP}(?:\.\s?{_DIGIT}{{3}})?|{_OCR_ORDINAL})"
 
 # "nº", "n°", "n.", "No", "Nº", "n.º", "número"
 NUMBER_MARKER = (
@@ -138,5 +141,5 @@ NUMBER_MARKER = (
 # Ano com tolerância a OCR ("2O24", "202l").
 YEAR = rf"(?:19|2[0O]){_DIGIT}{{2}}"
 
-# Dígitos simples com tolerância a OCR ("§ lº").
-SMALL_NUMBER = _GROUP
+# Dígitos simples com tolerância a OCR ("§ 1º", "§ lº").
+SMALL_NUMBER = rf"(?:{_GROUP}|{_OCR_ORDINAL})"

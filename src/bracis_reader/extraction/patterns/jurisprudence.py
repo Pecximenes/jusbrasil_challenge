@@ -136,6 +136,18 @@ SUMULA = (
     rf"(?:{any_of(fuzzy_word(w) for w in ('do', 'da'))}{SPACE})?{COURT})?"
 )
 
+_OF_COURT = (
+    rf"(?:{any_of(fuzzy_word(w) for w in ('do', 'da', 'deste', 'desta'))}{SPACE})"
+)
+SUMULA_REVERSED = (
+    rf"\b{any_of(fuzzy_word(w) for w in ('verbete', 'enunciado'))}"
+    rf"(?:{OPTIONAL_SPACE}{NUMBER_MARKER})?{OPTIONAL_SPACE}{SHORT_NUMBER}"
+    rf"{SPACE}{any_of(fuzzy_word(w) for w in ('da', 'de'))}"
+    rf"{SPACE}{fuzzy_word('súmula')}"
+    rf"(?:{SPACE}{fuzzy_word('vinculante')})?"
+    rf"(?:{SPACE}{_OF_COURT}?{COURT})?"
+)
+
 _TEMA_SCOPE = any_phrase(
     ("repercussão geral", "recursos repetitivos", "recurso repetitivo")
 )
@@ -166,6 +178,7 @@ def build_jurisprudence_patterns() -> tuple[CitationPattern, ...]:
     return (
         pattern("processo", PROCESS),
         pattern("sumula", SUMULA),
+        pattern("sumula", SUMULA_REVERSED),
         pattern("tema", TEMA),
         pattern("orientacao_jurisprudencial", ORIENTACAO_JURISPRUDENCIAL),
         pattern("numero_cnj", CNJ_REFERENCE),

@@ -105,6 +105,10 @@ CLASS_NAMES = (
     "Questão de Ordem",
     "Inquérito",
     "Representação",
+    "Ação de Investigação Judicial Eleitoral",
+    "Ação de Impugnação de Mandato Eletivo",
+    "Recurso contra Expedição de Diploma",
+    "Registro de Candidatura",
     "Consulta",
     "Prestação de Contas",
 )
@@ -114,7 +118,7 @@ CLASS_NAMES = (
 CLASS_ACRONYMS = (
     "REsp", "RE", "AREsp", "ARE", "EREsp", "EAREsp", "REspe", "REspEl",
     "AREspE", "AREspEl", "AREspEI", "RESPE", "AgInt", "AgRg", "AgR", "AgReg",
-    "Ag", "AI", "AIRR", "AgAIRR", "ARR", "AgARR", "RR", "RO", "ROT", "ReeNec",
+    "Ag", "AI", "AIRR", "AgAIRR", "ARR", "AgARR", "RR", "RRAg", "RO", "ROT", "ReeNec",
     "EDcl", "ED", "EDs", "EDiv", "EI", "EInf", "E", "HC", "RHC", "MS", "RMS",
     "MI", "Rcl", "Recl", "RCL", "APL", "Ap", "ApCrim", "AR", "ADI", "ADC",
     "ADO", "ADPF", "AC", "AP", "CC", "CJ", "SLS", "SL", "SS", "Pet", "QO",
@@ -139,5 +143,5 @@ DECISION_NOUNS = (
 LAW_ACRONYMS = (
     "CPC", "CPC/2015", "CPC/15", "CPC/73", "CPP", "CPM", "CPPM", "CLT", "CDC",
     "CTN", "CC", "CC/2002", "CF", "CF/88", "CF/1988", "ECA", "LINDB", "LEP",
-    "CTB", "LC",
+    "CTB",
 )  # fmt: skip

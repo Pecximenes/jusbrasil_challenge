@@ -122,7 +122,12 @@ PROCESS = (
 CNJ_REFERENCE = rf"(?<![\w.\-]){_PROCESS_PREFIX}?{CNJ_NUMBER}{UF_SUFFIX}?(?![\w])"
 
 _SUMULA_WORD = any_of(
-    [fuzzy_word("súmula"), fuzzy_word("súm") + r"\.", fuzzy_word("enunciado")]
+    [
+        fuzzy_word("súmula"),
+        fuzzy_word("súm") + r"\.",
+        fuzzy_word("enunciado"),
+        case_sensitive("SV"),  # Súmula Vinculante
+    ]
 )
 SUMULA = (
     rf"\b{_SUMULA_WORD}(?:{SPACE}{fuzzy_word('vinculante')})?"

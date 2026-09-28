@@ -49,7 +49,7 @@ _MODIFIER = any_of(
 _MODIFIERS = rf"(?:{OPTIONAL_SPACE},?{OPTIONAL_SPACE}{_MODIFIER})*"
 
 _NUMBERED_LAW = (
-    rf"(?:{fuzzy_word('lei')}"
+    rf"(?:(?:{fuzzy_word('lei')}|{case_sensitive('LC')})"
     rf"(?:{SPACE}{any_phrase(('complementar', 'ordinária', 'federal', 'estadual'))})?"
     rf"|{fuzzy_word('decreto')}(?:-{fuzzy_word('lei')})?"
     rf"|{fuzzy_phrase('medida provisória')})"

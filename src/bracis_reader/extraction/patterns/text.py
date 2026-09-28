@@ -101,7 +101,12 @@ _DIGIT = rf"[0-9{re.escape(OCR_DIGIT_LETTERS)}]"
 # Um grupo começa com dígito real, ou com letra-dígito seguida de dígito real
 # ("l.996", "O600216"). Isso impede que siglas como "SC" ou "TO" sejam lidas
 # como números.
-_GROUP = rf"(?:[0-9]|[{re.escape(OCR_DIGIT_LETTERS)}](?=[.\s]?[0-9])){_DIGIT}*"
+# A letra-dígito inicial não pode vir colada a outra letra: em "Rcl 36.670" ou
+# "No 7001184", o "l" e o "o" são o fim de uma palavra, não um dígito.
+_GROUP = (
+    rf"(?:[0-9]|(?<![^\W\d_])[{re.escape(OCR_DIGIT_LETTERS)}](?=[.\s]?[0-9]))"
+    rf"{_DIGIT}*"
+)
 
 # Separadores aceitos entre grupos: ponto, hífen, travessão, espaço, quebra
 # de linha e combinações curtas deles ("33.-\n474", "7220273--\n23").

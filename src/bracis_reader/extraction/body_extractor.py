@@ -4,13 +4,7 @@ import re
 
 
 class DocumentBodyExtractor:
-    """Localiza onde o corpo começa, sem modificar o texto original.
-
-    O cabeçalho (número dos autos, partes, OAB, valor da causa) traz números
-    que parecem citações mas são distratores. O corpo começa depois de duas
-    linhas vazias seguidas; se o documento não tiver essa marca, usa a
-    primeira linha vazia dentro dos primeiros ``header_limit`` caracteres.
-    """
+    """Localiza onde o corpo começa, sem modificar o texto original."""
 
     _HEADER_END = re.compile(r"\r?\n[ \t]*\r?\n[ \t]*\r?\n")
     _BLANK_LINE = re.compile(r"\r?\n[ \t]*\r?\n")

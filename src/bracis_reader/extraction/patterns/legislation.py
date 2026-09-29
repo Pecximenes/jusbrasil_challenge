@@ -1,10 +1,4 @@
-"""Padrões de dispositivos legais identificados.
-
-    art./artigo NÚMERO [, § 1º | , I | , 'a' | , parágrafo único]... da|do LEI
-
-"LEI" pode ser uma lei numerada, um código, a Constituição, a CLT, um
-estatuto ou a sigla de um diploma (CPC, CLT, CF/88...).
-"""
+"""Padrões de dispositivos legais identificados."""
 
 import re
 
@@ -24,7 +18,6 @@ from bracis_reader.extraction.patterns.text import (
     fuzzy_word,
 )
 
-# Palavra com inicial maiúscula ou toda em maiúsculas ("Civil", "CIVIL").
 _CAPITALIZED = case_sensitive(r"(?:[A-ZÀ-Ý][a-zà-ÿ]+|[A-ZÀ-Ý]{2,})")
 _OF = any_of(fuzzy_word(w) for w in ("de", "do", "da", "dos", "das"))
 

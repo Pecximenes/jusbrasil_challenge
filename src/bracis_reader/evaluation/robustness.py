@@ -1,15 +1,4 @@
-"""Teste de robustez a ruído: mede se o detector generaliza além do gabarito.
-
-O goldenset tem poucas citações; um detector pode acertar todas elas por
-decorar a forma exata de cada uma e ainda assim falhar no conjunto oculto.
-Este módulo pega cada citação do gabarito, aplica variações de superfície
-descritas no regulamento do desafio (abreviação, formatação do número,
-separador de UF, confusões de OCR e quebras de linha), recoloca o trecho
-alterado no documento e verifica se o detector ainda o encontra.
-
-As transformações não usam nada do gabarito além do próprio trecho, então
-um bom resultado aqui indica regras gerais, não ajustadas a exemplos.
-"""
+"""Teste de robustez a ruído: mede se o detector generaliza além do gabarito."""
 
 import random
 import re
@@ -25,7 +14,6 @@ Transform = Callable[[str, random.Random], str]
 
 _UF = "AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO"
 
-# Variantes de abreviação citadas no regulamento e usuais na prática forense.
 _ABBREVIATIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     (r"\bREsp\b", ("R.Esp.", "Rec. Esp.", "Recurso Especial", "RESP")),
     (r"\bRecurso Especial\b", ("REsp", "Rec. Esp.", "R. Esp.")),
@@ -164,7 +152,7 @@ class NoiseRobustnessEvaluator:
             gold = sorted(expected_by_document.get(document.documento_id, set()))
             for start, end, snippet in gold:
                 if document.texto[start:end] != snippet:
-                    continue  # anotação inconsistente com o texto; ignora
+                    continue
                 for _ in range(self._variants):
                     variant = self._make_variant(snippet, rng)
                     if variant == snippet:

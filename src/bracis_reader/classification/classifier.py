@@ -1,24 +1,4 @@
-"""Classificação de cada citação em real, inventada ou incompleta.
-
-Regra do regulamento, aplicada à base canônica:
-
-    feitos encontrados   classe       saída
-    exatamente 1         real         id_canonico de qualquer registro do feito
-    0                    inventada    sem resolução
-    2 ou mais            incompleta   sem resolução (não há como desempatar)
-
-Citações sem identificador suficiente para montar a consulta ("jurisprudência
-pacífica desta Corte") são incompletas sem passar pela base.
-
-O caminho de cada citação depende do padrão que a encontrou:
-
-- processo / número CNJ  -> número normalizado no índice de feitos
-- súmula                 -> catálogo de súmulas (tribunal + número)
-- dispositivo legal      -> catálogo de dispositivos (lei + artigo)
-- tema / OJ              -> não existem na base: inventada
-- decisão descritiva     -> contagem por tribunal, ano e relator
-- genéricas              -> incompleta
-"""
+"""Classificação de cada citação em real, inventada ou incompleta."""
 
 import re
 from dataclasses import dataclass
@@ -53,7 +33,6 @@ _COURT_NAMES = {
 }
 _CNJ_SEGMENT_COURT = {"5": "TST", "6": "TSE", "7": "STM"}
 
-# Pistas de tribunal pela classe, usadas só para desempatar.
 _CLASS_COURT_HINTS: tuple[tuple[str, str], ...] = (
     (r"eleitoral|respe|\bagr-", "TSE"),
     (r"\btst\b|\b(?:ai)?rr\b|\barr\b|revista", "TST"),
@@ -62,8 +41,6 @@ _CLASS_COURT_HINTS: tuple[tuple[str, str], ...] = (
     (r"\bre\b|\bare\b|extraordin|\badi\b|\badpf\b|\badc\b", "STF"),
 )
 
-# Marcadores de recurso sobre recurso. "AgInt no REsp 1" e "REsp 1" são o
-# mesmo feito, mas registros diferentes; o marcador escolhe o registro.
 _APPEAL_MARKERS = {
     "agravo": (
         r"\bag(?:int|rg|r|reg)?\b|\bag\.\s?(?:int|reg|rg)"
@@ -81,6 +58,14 @@ def _appeal_markers(text: str) -> set[str]:
     }
 
 
+_SUMULA_TITLE = re.compile(
+    r"s[uú]mula\s+(?P<vinculante>vinculante\s+)?n[º°o]?\.?\s*(?P<numero>\d+)"
+    r"\s+d[oa]\s+(?P<tribunal>STF|STJ|TST|TSE|STM)\b",
+    re.IGNORECASE,
+)
+_ARTICLE_TITLE = re.compile(
+    r"artigo\s+(?P<artigo>\d+)\s*[º°o]?\s+d[aoe]s?\s+(?P<lei>.+)$", re.IGNORECASE
+)
 _YEAR = re.compile(r"\b(?:19|2[0O])[0-9OoIlSs]{2}\b")
 _TITLE = (
     r"(?:exm[oa]\.?\s+(?:(?:sr|sra)\.?\s+)?)?"
@@ -90,12 +75,10 @@ _RAPPORTEUR = re.compile(
     r"(?:relatoria\s+d\w{0,2}|relatad[oa]\s+pel[oa]|\brel(?:ator|atora)?\.?"
     rf"|\b(?:d[oa]|pel[oa])(?=\s+{_TITLE}))"
     rf"(?:\s+{_TITLE}){{0,2}}"
-    # O nome é a sequência de palavras com inicial maiúscula que vem depois.
     r"\s+(?P<nome>(?-i:[A-ZÀ-Ý][\wÀ-ÿ'’]+(?:\s+(?:(?:d[aeo]s?|D[AEOaeo]S?|e)\s+)?"
     r"[A-ZÀ-Ý][\wÀ-ÿ'’]+)*))",
     re.IGNORECASE,
 )
-# Número começa por dígito real, ou por letra-dígito seguida de dígito ("l86").
 _NUM = r"(?:[0-9]|[OoIlLSs](?=[.\s]?[0-9º°]))[0-9OoIlLSs.]*"
 _ARTICLE_NUMBER = re.compile(rf"art(?:igo)?s?\.?\s*({_NUM})", re.I)
 _SUMULA_NUMBER = re.compile(
@@ -107,7 +90,7 @@ _SUMULA_NUMBER = re.compile(
 class _Resolution:
     classificacao: str
     id_canonico: int | None
-    regra: str  # chave da tabela de confiança calibrada
+    regra: str
     motivo: str
 
 
@@ -134,39 +117,59 @@ class CitationClassifier:
         self._sumulas = self._resolve_catalog_sumulas()
         self._dispositivos = self._resolve_catalog_dispositivos()
 
-    # ------------------------------------------------------------- catálogo
-
-    def _record_starting_with(self, natureza: str, prefix: str) -> int:
-        wanted = _plain(prefix)
+    def _first_line(self, natureza: str):
         for record in self._base.records:
-            if record.natureza != natureza:
-                continue
-            body = record.texto.split("\n", 1)[-1] if natureza == "sumula" else ""
-            if _plain(record.texto).startswith(wanted) or _plain(body).startswith(
-                wanted
-            ):
+            if record.natureza == natureza:
+                yield record, record.texto.split("\n", 1)[0]
+
+    def _record_containing(self, natureza: str, fragment: str) -> int | None:
+        wanted = _plain(fragment)
+        for record in self._base.records:
+            if record.natureza == natureza and wanted in _plain(record.texto):
                 return record.id
-        raise LookupError(f"Registro {natureza!r} não encontrado: {prefix!r}")
+        return None
 
     def _resolve_catalog_sumulas(self) -> dict[tuple[str, int, bool], int]:
-        return {
-            (
-                entry.tribunal,
-                entry.numero,
-                entry.vinculante,
-            ): self._record_starting_with("sumula", entry.inicio_do_texto)
-            for entry in SUMULAS
-        }
+        catalog: dict[tuple[str, int, bool], int] = {}
+        for record, title in self._first_line("sumula"):
+            match = _SUMULA_TITLE.match(title)
+            if match:
+                key = (
+                    match.group("tribunal").upper(),
+                    int(match.group("numero")),
+                    bool(match.group("vinculante")),
+                )
+                catalog[key] = record.id
+        for entry in SUMULAS:
+            key = (entry.tribunal, entry.numero, entry.vinculante)
+            if key not in catalog:
+                record_id = self._record_containing("sumula", entry.inicio_do_texto)
+                if record_id is not None:
+                    catalog[key] = record_id
+        return catalog
 
     def _resolve_catalog_dispositivos(self) -> dict[tuple[str, int], int]:
-        return {
-            (entry.lei, entry.artigo): self._record_starting_with(
-                "dispositivo", entry.inicio_do_texto
+        catalog: dict[tuple[str, int], int] = {}
+        for record, title in self._first_line("dispositivo"):
+            match = _ARTICLE_TITLE.match(title)
+            if not match:
+                continue
+            law_text = _plain(match.group("lei"))
+            law = next(
+                (law for law, pattern in LAW_PATTERNS if re.search(pattern, law_text)),
+                None,
             )
-            for entry in DISPOSITIVOS
-        }
-
-    # -------------------------------------------------------------- público
+            if law:
+                catalog[(law, int(match.group("artigo")))] = record.id
+        for entry in DISPOSITIVOS:
+            key = (entry.lei, entry.artigo)
+            if key not in catalog:
+                record_id = self._record_containing(
+                    "dispositivo", entry.inicio_do_texto
+                )
+                if record_id is not None:
+                    catalog[key] = record_id
+        return catalog
 
     def classify(self, citation: CitationCandidate) -> ClassifiedCitation:
         """Classifica uma citação encontrada pelo detector."""
@@ -192,8 +195,6 @@ class CitationClassifier:
         self, citations: list[CitationCandidate]
     ) -> list[ClassifiedCitation]:
         return [self.classify(citation) for citation in citations]
-
-    # ------------------------------------------------------------- caminhos
 
     def _by_process_number(self, trecho: str) -> _Resolution:
         keys = extract_numbers(trecho)
@@ -302,7 +303,6 @@ class CitationClassifier:
             return _Resolution("incompleta", None, "artigo_sem_numero", "sem número")
         artigo = int(to_digits(match.group(1)) or 0)
         law_text = _plain(trecho[match.end() :])
-        # "Complernentar" -> "Complementar": desfaz a troca m -> rn do OCR.
         variants = (law_text, law_text.replace("rn", "m"))
         lei = next(
             (
@@ -337,8 +337,6 @@ class CitationClassifier:
                 "real", min(feito.ids), "descricao_unica", "descrição única na base"
             )
         if not feitos:
-            # Pode ser nome com ruído que não casou; o regulamento chamaria de
-            # inventada, mas a leitura da descrição é incerta demais.
             return _Resolution(
                 "incompleta",
                 None,

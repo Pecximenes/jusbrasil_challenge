@@ -1,19 +1,4 @@
-"""Teste da classificação com citações montadas a partir da própria base.
-
-O gabarito tem só 82 citações reais. Para saber se a classificação
-generaliza, este módulo sorteia processos, súmulas, artigos e relatores da
-base canônica, escreve citações novas com eles (em formatos e ruídos
-variados), insere cada uma numa frase e confere a classe devolvida:
-
-- processo existente, qualquer formatação/ruído       -> real, com id do feito
-- mesmo processo com um dígito trocado (não existe)   -> inventada
-- súmula ou artigo do catálogo, em várias grafias     -> real
-- número de súmula ou lei trocados                    -> inventada
-- decisão descrita por tribunal, ano e relator        -> incompleta (ou real,
-  se a descrição for única na base)
-
-Nada disso depende do goldenset.
-"""
+"""Teste da classificação com citações montadas a partir da própria base."""
 
 import random
 from dataclasses import dataclass, field
@@ -96,8 +81,6 @@ class SyntheticCitationEvaluator:
         self._check_catalog(result)
         self._check_descriptions(result)
         return result
-
-    # ----------------------------------------------------------- auxiliares
 
     def _classify(self, sentence: str) -> list[ClassifiedCitation]:
         document = TextDocument(documento_id="sintetico", texto="CAB\n\n\n" + sentence)

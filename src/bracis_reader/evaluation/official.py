@@ -1,22 +1,4 @@
-"""Nota oficial do desafio, reproduzindo o ``kaggle_metric.py`` da organização.
-
-Por nível (N1, N2):
-
-1. **macro-F1** das classes presentes no gabarito (real, inventada,
-   incompleta), com pareamento guloso 1-para-1 por maior IoU (>= 0,5):
-   - mesma classe e, se real, id aceito        -> TP da classe
-   - real x real com id errado                 -> FP de real (sem FN)
-   - classe errada                             -> FN da esperada + FP da predita
-   - predição sem par                          -> FP da predita, exceto se for
-     um componente (>= 90% contido) de uma citação já pareada
-   - gabarito sem par                          -> FN
-2. **penalidade**: ``s = macroF1 * (1 - 0,5 * tau)``, com tau = fração das
-   inventadas do gabarito preditas como real;
-3. **bônus de calibração**: ``score = s * (1 + 0,10 * (1 - brier))``, com o
-   Brier calculado sobre os pares (acerto = 1, erro = 0).
-
-Nota final: ``(1 * N1 + 2 * N2) / 3``. Máximo: 1,1.
-"""
+"""Nota oficial do desafio, reproduzindo o ``kaggle_metric.py`` da organização."""
 
 from dataclasses import dataclass, field
 

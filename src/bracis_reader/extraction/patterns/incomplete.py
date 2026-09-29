@@ -1,23 +1,4 @@
-"""Padrões de citações sem identificador completo.
-
-Dois tipos, conforme o regulamento:
-
-1. **Descritivas (buscáveis):** citam uma decisão por tribunal, ano ou
-   relator, sem número — "julgado do STF proferido em 2024 pela relatoria de
-   Fulano", "Rcl de 2021, Rel. Min. Fulana".
-
-       DECISÃO [do TRIBUNAL] [, em|de ANO] [, relatoria de NOME]
-       (exige ano ou relator)
-
-2. **Genéricas (não buscáveis):** apenas aludem a uma fonte —
-   "jurisprudência pacífica desta Corte", "normas de regência da matéria".
-
-       [ADJ] SUBSTANTIVO [ADJ]... [COMPLEMENTO]...
-       (exige ao menos um adjetivo de autoridade ou um complemento)
-
-As listas de palavras são vocabulário do domínio; as combinações entre elas
-não precisam ter aparecido no gabarito.
-"""
+"""Padrões de citações sem identificador completo."""
 
 import re
 
@@ -52,9 +33,6 @@ _OF_THIS = _words(
 )  # fmt: skip
 _TO = _words("à", "ao", "a", "aos", "às")
 
-# ----------------------------------------------------------------------------
-# 1. Citações descritivas
-# ----------------------------------------------------------------------------
 
 _DECISION = any_of(
     [
@@ -63,8 +41,6 @@ _DECISION = any_of(
         CLASS_EXPRESSION,
     ]
 )
-# Particípio que costuma ligar a decisão ao tribunal ou à data:
-# "acórdão proferido pelo STJ", "precedente firmado em 2020".
 _DECIDED = _words(
     "julgado", "julgada", "proferido", "proferida", "publicado", "publicada",
     "prolatado", "prolatada", "firmado", "firmada", "exarado", "exarada",
@@ -103,8 +79,6 @@ _RAPPORTEUR = (
     rf"|{_words('relatado', 'relatada')}{SPACE}{_words('pelo', 'pela')}"
     rf"|{_words('rel', 'relator', 'relatora')}\.?)"
     rf"{_TITLES}"
-    # "pelo Ministro X", "do Min. X": exige o título para não confundir
-    # com "do STF".
     rf"|{_words('do', 'da', 'pelo', 'pela')}(?:{SPACE}{_HONORIFIC})?"
     rf"(?:{SPACE}{_MINISTER}){{1,2}}"
     rf"){SPACE}{_NAME}"
@@ -112,11 +86,6 @@ _RAPPORTEUR = (
 _SEP = r"\s*,?\s*"
 _DETAIL = rf"(?:{_COURT_SPEC}|{_YEAR_SPEC}|{_RAPPORTEUR})"
 
-# Decisão seguida de tribunal, ano e relator, em qualquer ordem, exigindo
-# pelo menos DOIS desses detalhes. Com um só, a frase costuma não ser uma
-# citação: "o voto do Ministro X", "julgado em 2018", "acórdão do STJ".
-# Não começa logo depois de um número: em "RE 1.234 AgR, Rel. Min. X" o
-# trecho "AgR, Rel. Min. X" é só o final de uma citação numerada.
 _TWO_DETAILS = (
     rf"(?:{_SEP}{_COURT_SPEC}{_SEP}(?:{_YEAR_SPEC}|{_RAPPORTEUR})"
     rf"|{_SEP}{_YEAR_SPEC}{_SEP}(?:{_RAPPORTEUR}|{_COURT_SPEC})"
@@ -127,9 +96,6 @@ DESCRIPTIVE_DECISION = (
     rf"{_TWO_DETAILS}(?:{_SEP}{_DETAIL}){{0,2}}"
 )
 
-# ----------------------------------------------------------------------------
-# 2. Referências genéricas à jurisprudência
-# ----------------------------------------------------------------------------
 
 _DOCTRINE_NOUN = any_phrase(
     (
@@ -187,27 +153,16 @@ _JURIS_COMPLEMENT = any_of(
     ]
 )
 
-# Uma alusão genérica só é citação quando é específica o bastante: precisa de
-# um qualificador de autoridade ("pacífica", "sumulado", "reiterados") E de
-# uma âncora ("desta Corte", "sobre a matéria", "em sede de repetitivo"), ou
-# de duas âncoras. Frases soltas como "a orientação dominante" ou "a
-# orientação firmada no REsp X" (que só retomam outra citação) não entram.
 GENERIC_JURISPRUDENCE = (
     rf"\b(?:"
-    # recente acórdão da Segunda Turma | reiterados precedentes do STJ
     rf"{_JURIS_ADJECTIVE}{SPACE}{_ANY_JURIS_NOUN}"
     rf"(?:{SPACE}{_JURIS_ADJECTIVE}){{0,2}}(?:{SPACE}{_JURIS_COMPLEMENT}){{1,2}}"
-    # jurisprudência pacífica desta Corte | verbete sumular aplicável à espécie
     rf"|{_ANY_JURIS_NOUN}(?:{SPACE}{_JURIS_ADJECTIVE}){{1,2}}"
     rf"(?:{SPACE}{_JURIS_COMPLEMENT}){{1,2}}"
-    # precedentes desta Casa em situações análogas
     rf"|{_DOCTRINE_NOUN}{SPACE}{_JURIS_COMPLEMENT}{SPACE}{_JURIS_COMPLEMENT}"
     rf")\b"
 )
 
-# ----------------------------------------------------------------------------
-# 3. Referências genéricas à legislação
-# ----------------------------------------------------------------------------
 
 _LAW_NOUN = any_phrase(
     (
@@ -243,9 +198,6 @@ _LAW_COMPLEMENT = any_of(
     ]
 )
 
-# Mesma ideia para a legislação: a âncora é obrigatória ("de regência",
-# "invocado na origem", "que disciplina a prescrição", "do Código Civil").
-# "Os dispositivos invocados", sozinho, não é citação.
 GENERIC_LEGISLATION = (
     rf"\b{_LAW_NOUN}(?:{SPACE}{_LAW_ADJECTIVE}){{0,2}}{SPACE}{_LAW_COMPLEMENT}\b"
 )

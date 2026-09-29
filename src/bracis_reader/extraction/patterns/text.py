@@ -1,21 +1,13 @@
-"""Blocos de construção para regex tolerantes a ruído de OCR e formatação.
-
-Em vez de escrever cada variante à mão ("Súmula", "5úmula", "SÚMULA",
-"Sumula"...), as palavras são compiladas a partir de uma tabela geral de
-confusões de OCR. Assim, qualquer palavra nova do vocabulário ganha a mesma
-tolerância automaticamente.
-"""
+"""Blocos de construção para regex tolerantes a ruído de OCR e formatação."""
 
 import re
 import unicodedata
 
 FLAGS = re.IGNORECASE | re.UNICODE
 
-# Qualquer espaço, inclusive quebra de linha e espaço não separável (\xa0).
 SPACE = r"\s+"
 OPTIONAL_SPACE = r"\s*"
 
-# Confusões típicas de OCR entre letras. Acentos são sempre opcionais.
 _LETTER_VARIANTS: dict[str, str] = {
     "a": "aáàâãä",
     "c": "cçe",
@@ -35,12 +27,7 @@ def _strip_accent(char: str) -> str:
 
 
 def fuzzy_word(word: str) -> str:
-    """Compila uma palavra em regex tolerante a acentos e a OCR.
-
-    - acentos opcionais ("jurisprudência" casa "jurisprudencia");
-    - trocas de caractere comuns (c↔e, l↔1, o↔0, s↔5...);
-    - "m" casa "rn" e vice-versa.
-    """
+    """Compila uma palavra em regex tolerante a acentos e a OCR."""
     parts: list[str] = []
     i = 0
     lowered = word.lower()
@@ -89,47 +76,28 @@ def case_sensitive(expression: str) -> str:
     return f"(?-i:{expression})"
 
 
-# ----------------------------------------------------------------------------
-# Números
-# ----------------------------------------------------------------------------
-
-# Letras que o OCR confunde com dígitos. O regulamento garante que um dígito
-# nunca é trocado por outro dígito; só por letras parecidas.
 OCR_DIGIT_LETTERS = "OoDQIl|iZzSsGbTBgq"
 _DIGIT = rf"[0-9{re.escape(OCR_DIGIT_LETTERS)}]"
 
-# Um grupo começa com dígito real, ou com letra-dígito seguida de dígito real
-# ("l.996", "O600216"). Isso impede que siglas como "SC" ou "TO" sejam lidas
-# como números.
-# A letra-dígito inicial não pode vir colada a outra letra: em "Rcl 36.670" ou
-# "No 7001184", o "l" e o "o" são o fim de uma palavra, não um dígito.
 _GROUP = (
     rf"(?:[0-9]|(?<![^\W\d_])[{re.escape(OCR_DIGIT_LETTERS)}](?=[.\s\-]{{0,2}}[0-9]))"
     rf"{_DIGIT}*"
 )
 
-# Separadores aceitos entre grupos: ponto, hífen, travessão, espaço, quebra
-# de linha e combinações curtas deles ("33.-\n474", "7220273--\n23").
 _SEPARATOR = r"[\s.\-–—]{1,4}"
 
-# Número de processo em qualquer formatação: 1.741.784 | 1741784 |
-# 1 741 784 | 1.741. 784 | 0600216-46.2020.6.14.0022 | 7000171-3920237000000
 PROCESS_NUMBER = rf"{_GROUP}(?:{_SEPARATOR}{_GROUP}){{0,8}}"
 
-# Número CNJ (NNNNNNN-DD.AAAA.J.TR.OOOO), com qualquer separador ou nenhum.
 _CNJ_SEP = r"[\s.\-–—]{0,3}"
 CNJ_NUMBER = (
     rf"{_DIGIT}{{7}}{_CNJ_SEP}{_DIGIT}{{2}}{_CNJ_SEP}{_DIGIT}{{4}}"
     rf"{_CNJ_SEP}{_DIGIT}{_CNJ_SEP}{_DIGIT}{{2}}{_CNJ_SEP}{_DIGIT}{{4}}"
 )
 
-# Número ordinal de um dígito lido por OCR ("§ lº", "art. Sº").
 _OCR_ORDINAL = rf"(?<![^\W\d_])[{re.escape(OCR_DIGIT_LETTERS)}](?=\s?[º°])"
 
-# Número curto (súmulas, temas, artigos): 83 | 1.022 | 2.680 | lº
 SHORT_NUMBER = rf"(?:{_GROUP}(?:\.\s?{_DIGIT}{{3}})?|{_OCR_ORDINAL})"
 
-# "nº", "n°", "n.", "No", "Nº", "n.º", "número"
 NUMBER_MARKER = (
     r"(?:n\.?\s?[º°o]\.?|n\.|"
     + fuzzy_word("número")
@@ -138,8 +106,6 @@ NUMBER_MARKER = (
     + ")"
 )
 
-# Ano com tolerância a OCR ("2O24", "202l").
 YEAR = rf"(?:19|2[0O]){_DIGIT}{{2}}"
 
-# Dígitos simples com tolerância a OCR ("§ 1º", "§ lº").
 SMALL_NUMBER = rf"(?:{_GROUP}|{_OCR_ORDINAL})"

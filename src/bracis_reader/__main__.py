@@ -1,30 +1,4 @@
-"""Executa o pipeline pela linha de comando: ``python -m bracis_reader``.
-
-Uso típico (desenvolvimento, com gabarito):
-
-    python -m bracis_reader
-
-Conjunto oculto (sem gabarito), só gera a saída:
-
-    python -m bracis_reader --txt pasta/dos/txt --sem-gabarito
-
-Opções:
-
-    --txt DIR        pasta com os documentos (padrão: data/txt)
-    --gold CSV       goldenset (padrão: data/goldenset.csv)
-    --sem-gabarito   não avalia; só extrai, classifica e grava
-    --base DB        base canônica (padrão: refs/desafio1_bracis.db)
-    --saida DIR      onde gravar json/ e submission.csv (padrão: saida)
-    --exato          extração avaliada por igualdade exata, não IoU >= 0,5
-    --sem-ajustes    desliga os ajustes pontuais do conjunto de desenvolvimento
-    --genericas      também extrai alusões genéricas ("jurisprudência pacífica
-                     desta Corte"), que o gabarito oficial não anota
-    --confianca-maxima  envia confiança 1,0 em todas as citações (bônus de
-                     calibração máximo quando tudo está certo)
-    --calibrar       mostra a taxa de acerto de cada regra (para a confiança)
-    --robustez       testes de generalização: ruído na extração e citações
-                     sintéticas geradas da base para a classificação
-"""
+"""Executa o pipeline pela linha de comando: ``python -m bracis_reader``."""
 
 import argparse
 import sys
@@ -32,7 +6,6 @@ from pathlib import Path
 
 from bracis_reader.classification.canonical_base import CanonicalBase
 from bracis_reader.classification.classifier import CitationClassifier
-from bracis_reader.classification.dev_corrections import DevSetCorrections
 from bracis_reader.evaluation.calibration import laplace, measure_rules
 from bracis_reader.evaluation.evaluator import CitationEvaluator
 from bracis_reader.evaluation.goldenset import GoldensetLoader, load_annotations
@@ -44,6 +17,9 @@ from bracis_reader.pipeline import CitationExtractionApplication
 
 DEFAULT_TXT_DIRECTORY = Path("data/txt")
 DEFAULT_GOLDENSET_PATH = Path("data/goldenset.csv")
+KAGGLE_TXT_DIRECTORY = Path("data/kaggle/txt")
+KAGGLE_GOLDENSET_PATH = Path("data/kaggle/goldenset.csv")
+KAGGLE_BASE_PATH = Path("data/kaggle/desafio1_bracis.db")
 DEFAULT_BASE_PATH = Path("refs/desafio1_bracis.db")
 DEFAULT_OUTPUT_DIRECTORY = Path("saida")
 
@@ -53,18 +29,25 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         prog="bracis_reader",
         description="Extrai e classifica citações jurídicas.",
     )
-    parser.add_argument("--txt", type=Path, default=DEFAULT_TXT_DIRECTORY)
-    parser.add_argument("--gold", type=Path, default=DEFAULT_GOLDENSET_PATH)
+    parser.add_argument("--txt", type=Path, default=None)
+    parser.add_argument("--gold", type=Path, default=None)
+    parser.add_argument("--kaggle", action="store_true")
     parser.add_argument("--sem-gabarito", action="store_true")
-    parser.add_argument("--base", type=Path, default=DEFAULT_BASE_PATH)
+    parser.add_argument("--base", type=Path, default=None)
     parser.add_argument("--saida", type=Path, default=DEFAULT_OUTPUT_DIRECTORY)
     parser.add_argument("--exato", action="store_true")
     parser.add_argument("--robustez", action="store_true")
-    parser.add_argument("--sem-ajustes", action="store_true")
     parser.add_argument("--calibrar", action="store_true")
     parser.add_argument("--genericas", action="store_true")
     parser.add_argument("--confianca-maxima", action="store_true")
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.txt is None:
+        args.txt = KAGGLE_TXT_DIRECTORY if args.kaggle else DEFAULT_TXT_DIRECTORY
+    if args.gold is None:
+        args.gold = KAGGLE_GOLDENSET_PATH if args.kaggle else DEFAULT_GOLDENSET_PATH
+    if args.base is None:
+        args.base = KAGGLE_BASE_PATH if args.kaggle else DEFAULT_BASE_PATH
+    return args
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -84,12 +67,10 @@ def main(argv: list[str] | None = None) -> None:
 
     goldenset = None if args.sem_gabarito else args.gold
     evaluator = CitationEvaluator(iou_threshold=None if args.exato else 0.5)
-    corrections = None if args.sem_ajustes else DevSetCorrections()
     application = CitationExtractionApplication(
         detector=CitationDetector(include_generic=args.genericas),
         evaluator=evaluator,
         classifier=classifier,
-        corrections=corrections,
         fixed_confidence=1.0 if args.confianca_maxima else None,
     )
     application.run(

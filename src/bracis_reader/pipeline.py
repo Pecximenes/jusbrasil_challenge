@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from bracis_reader.classification.classifier import CitationClassifier
-from bracis_reader.classification.dev_corrections import DevSetCorrections
 from bracis_reader.domain.models import ClassifiedCitation
 from bracis_reader.evaluation.classification import (
     ClassificationEvaluator,
@@ -39,14 +38,12 @@ class CitationExtractionApplication:
         evaluator: CitationEvaluator | None = None,
         reporter: ConsoleReportPrinter | None = None,
         classifier: CitationClassifier | None = None,
-        corrections: DevSetCorrections | None = None,
         fixed_confidence: float | None = None,
     ) -> None:
         self._detector = detector or CitationDetector()
         self._evaluator = evaluator or CitationEvaluator()
         self._reporter = reporter or ConsoleReportPrinter()
         self._classifier = classifier
-        self._corrections = corrections
         self._fixed_confidence = fixed_confidence
 
     def run(
@@ -55,11 +52,7 @@ class CitationExtractionApplication:
         goldenset_path: str | Path | None = None,
         output_directory: str | Path | None = None,
     ) -> PipelineResult:
-        """Executa o pipeline.
-
-        Sem ``goldenset_path`` (caso do conjunto oculto), apenas extrai,
-        classifica e grava a saída.
-        """
+        """Executa o pipeline."""
         documents = TextDirectoryLoader(txt_directory).load()
         predictions = self._detector.detect_many(documents)
 
@@ -69,19 +62,6 @@ class CitationExtractionApplication:
                 documento_id: self._classifier.classify_many(citations)
                 for documento_id, citations in predictions.items()
             }
-            if self._corrections is not None:
-                results = {
-                    document.documento_id: self._corrections.apply(
-                        document, results[document.documento_id]
-                    )
-                    for document in documents
-                }
-                if self._corrections.applied:
-                    print(
-                        "Ajustes do conjunto de desenvolvimento aplicados: "
-                        f"{self._corrections.applied} (use --sem-ajustes para "
-                        "ver a métrica sem eles)\n"
-                    )
 
         if results and self._fixed_confidence is not None:
             results = {
@@ -93,7 +73,6 @@ class CitationExtractionApplication:
             }
 
         if results:
-            # A avaliação da extração usa as mesmas citações que vão para a saída.
             predictions = {
                 documento_id: [item.citacao for item in items]
                 for documento_id, items in results.items()

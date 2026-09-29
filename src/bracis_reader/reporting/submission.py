@@ -1,10 +1,4 @@
-"""Gravação da saída no formato do desafio.
-
-- um ``.json`` por documento, no formato do contrato de entrada e saída;
-- ``submission.csv`` com uma linha por documento, no mesmo formato gerado
-  por ``refs/json_to_submission.py``:
-  ``inicio,fim,classe,id_canonico,confianca|...`` ("-" quando ausente).
-"""
+"""Gravação da saída no formato do desafio."""
 
 import csv
 import json
@@ -13,9 +7,10 @@ from pathlib import Path
 from bracis_reader.domain.models import ClassifiedCitation
 
 
-def citation_to_contract(item: ClassifiedCitation) -> dict:
+def citation_to_contract(item: ClassifiedCitation, number: int = 1) -> dict:
     citation = item.citacao
     return {
+        "citacao_id": f"c{number}",
         "inicio": citation.inicio,
         "fim": citation.fim,
         "trecho": citation.trecho,
@@ -52,7 +47,10 @@ class SubmissionWriter:
         for documento_id, items in sorted(results.items()):
             payload = {
                 "documento_id": documento_id,
-                "citacoes": [citation_to_contract(item) for item in items],
+                "citacoes": [
+                    citation_to_contract(item, number)
+                    for number, item in enumerate(items, start=1)
+                ],
             }
             (json_directory / f"{documento_id}.json").write_text(
                 json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"

@@ -63,7 +63,7 @@ class SyntheticCitationEvaluator:
         seed: int = 42,
     ) -> None:
         self._base = base
-        self._classifier = classifier or CitationClassifier(base)
+        self._classifier = classifier or CitationClassifier.from_base(base)
         self._detector = detector or CitationDetector()
         self._sample_size = sample_size
         self._rng = random.Random(seed)

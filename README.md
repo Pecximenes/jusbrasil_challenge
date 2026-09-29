@@ -111,6 +111,7 @@ Gera `resultado/json/<documento_id>.json` e `resultado/submission.csv`.
 
 | Opção | O que faz |
 |---|---|
+| `--kaggle` | Usa os textos e o gabarito atuais do Kaggle (`data/kaggle/`) em vez dos originais |
 | `--txt PASTA` | Pasta dos documentos (padrão: `data/txt`) |
 | `--gold CSV` | Gabarito (padrão: `data/goldenset.csv`) |
 | `--sem-gabarito` | Não avalia; só extrai, classifica e grava |
@@ -136,8 +137,11 @@ ruff check .    # verifica estilo e imports
 ```text
 .
 ├── data/
-│   ├── txt/                       # 26 peças jurídicas (13 N1 + 13 N2)
-│   └── goldenset.csv              # Gabarito oficial do Kaggle (goldenset_offsets.csv)
+│   ├── txt/                       # 26 peças jurídicas originais (13 N1 + 13 N2)
+│   ├── goldenset.csv              # Gabarito original (225 citações)
+│   └── kaggle/                    # Versão atual do Kaggle, usada na submissão
+│       ├── txt/                   #   4 documentos corrigidos pela organização
+│       └── goldenset.csv          #   goldenset_offsets.csv (192 citações)
 ├── refs/                          # Material da Jusbrasil, incluindo a base
 │   └── desafio1_bracis.db         #   canônica e o conversor de submissão
 ├── src/bracis_reader/             # Código do projeto
@@ -432,10 +436,20 @@ python -m bracis_reader --txt PASTA --gold CSV --sem-ajustes --calibrar
 
 ## Resultado atual
 
-Os dados em `data/` são os do **Kaggle**: 26 documentos (4 deles corrigidos
-em relação à cópia antiga que está em `refs/txt`) e o gabarito
-`goldenset_offsets.csv`, com 192 citações. A cópia em `refs/` é o material
-original e está desatualizada.
+`data/` guarda duas versões do conjunto de desenvolvimento:
+
+- `data/txt` e `data/goldenset.csv`: os arquivos originais do repositório;
+- `data/kaggle/`: a versão atual publicada no Kaggle, que é a usada pelo
+  placar. Nela, 4 documentos foram corrigidos pela organização e o gabarito
+  (`goldenset_offsets.csv`, 192 citações) não anota alusões genéricas.
+
+A submissão do Kaggle deve ser gerada com `--kaggle`:
+
+```bash
+python main.py --kaggle --confianca-maxima
+```
+
+Resultados sobre `data/kaggle`:
 
 | Métrica | Padrão | Sem ajustes (`--sem-ajustes`) |
 |---|---|---|

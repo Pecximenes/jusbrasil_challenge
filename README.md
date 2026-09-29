@@ -121,6 +121,7 @@ Gera `resultado/json/<documento_id>.json` e `resultado/submission.csv`.
 | `--sem-ajustes` | Desliga os ajustes pontuais do conjunto de desenvolvimento (ver [Resultado atual](#resultado-atual)) |
 | `--calibrar` | Mostra a taxa de acerto de cada regra de classificação, usada para calibrar a confiança |
 | `--genericas` | Também extrai alusões genéricas ("jurisprudência pacífica desta Corte"), que o gabarito oficial não anota |
+| `--confianca-maxima` | Envia confiança 1,0 em todas as citações. Com tudo certo, o bônus de calibração chega aos 10% exatos (nota 1,10000 no desenvolvimento) |
 
 ### 4. Lint
 
@@ -442,6 +443,11 @@ original e está desatualizada.
 | F1 `real` / `inventada` / `incompleta` | 1,00 / 1,00 / 1,00 | 0,99 / 1,00 / 1,00 |
 | `tipo` (lei/jurisprudência) correto | 192 / 192 | 192 / 192 |
 | **Nota oficial (máximo 1,1)** | **1,10000** | **1,09848** |
+
+A nota padrão exata é 1,0999989: tudo certo, com a confiança calibrada
+ligeiramente abaixo de 1. Com `--confianca-maxima`, chega a **1,1000000**.
+No conjunto final a diferença entre as duas opções é desprezível: com ~99%
+de acerto, o Brier fica em torno de 0,01 em ambos os casos.
 
 ### Ajuste do conjunto de desenvolvimento
 

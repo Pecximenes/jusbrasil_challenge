@@ -40,12 +40,14 @@ class CitationExtractionApplication:
         reporter: ConsoleReportPrinter | None = None,
         classifier: CitationClassifier | None = None,
         corrections: DevSetCorrections | None = None,
+        fixed_confidence: float | None = None,
     ) -> None:
         self._detector = detector or CitationDetector()
         self._evaluator = evaluator or CitationEvaluator()
         self._reporter = reporter or ConsoleReportPrinter()
         self._classifier = classifier
         self._corrections = corrections
+        self._fixed_confidence = fixed_confidence
 
     def run(
         self,
@@ -80,6 +82,15 @@ class CitationExtractionApplication:
                         f"{self._corrections.applied} (use --sem-ajustes para "
                         "ver a métrica sem eles)\n"
                     )
+
+        if results and self._fixed_confidence is not None:
+            results = {
+                documento_id: [
+                    item.model_copy(update={"confianca": self._fixed_confidence})
+                    for item in items
+                ]
+                for documento_id, items in results.items()
+            }
 
         if results:
             # A avaliação da extração usa as mesmas citações que vão para a saída.

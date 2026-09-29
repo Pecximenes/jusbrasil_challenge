@@ -1,18 +1,4 @@
-"""Metadados das súmulas e dos dispositivos legais da base canônica.
-
-A tabela ``documentos`` guarda o texto das 5 súmulas e dos 13 artigos, mas
-não o *número* da súmula nem a *lei* a que o artigo pertence. Sem isso não
-há como casar "Súmula 83 do STJ" ou "art. 373 do CPC" com um registro.
-
-Como a base é congelada e pequena, o regulamento sugere carregar esses 18
-registros em memória. Aqui eles são identificados pelo começo do texto (e
-não pelo ``id``), e a correspondência é conferida ao carregar a base: se um
-item não for encontrado, o carregamento falha em vez de classificar errado.
-
-Quatro das cinco súmulas foram confirmadas automaticamente: nos acórdãos da
-base, o enunciado transcrito aparece junto de "Súmula N". A Súmula 443 do STJ
-não é transcrita em nenhum acórdão; seu número vem do enunciado oficial.
-"""
+"""Metadados das súmulas e dos dispositivos legais da base canônica."""
 
 from dataclasses import dataclass
 
@@ -42,7 +28,6 @@ SUMULAS = (
     SumulaEntry("TST", 331, False, "CONTRATO DE PRESTAÇÃO DE SERVIÇOS. LEGALIDADE."),
 )
 
-# Siglas internas de cada diploma coberto pela base.
 CPC, CC, CLT, CF, CPP, CPM, CDC, CE, LC64 = (
     "CPC", "CC", "CLT", "CF", "CPP", "CPM", "CDC", "CE", "LC64",
 )  # fmt: skip
@@ -63,9 +48,6 @@ DISPOSITIVOS = (
     DispositivoEntry(LC64, 1, "Art. 1º São inelegíveis"),
 )
 
-# Como cada diploma costuma ser citado. Aplicado ao texto sem acento e em
-# minúsculas. "Lei Complementar 140/2011" não casa com LC 64, e um diploma
-# fora da lista (ex.: Lei 9.504/1997) simplesmente não está na base.
 LAW_PATTERNS: tuple[tuple[str, str], ...] = (
     (CPC, r"processo civil|\bn?cpc\b|13\.?105"),
     (CPP, r"processo penal|\bcpp\b|3\.?689"),

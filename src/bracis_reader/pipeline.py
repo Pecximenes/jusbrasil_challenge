@@ -55,11 +55,7 @@ class CitationExtractionApplication:
         goldenset_path: str | Path | None = None,
         output_directory: str | Path | None = None,
     ) -> PipelineResult:
-        """Executa o pipeline.
-
-        Sem ``goldenset_path`` (caso do conjunto oculto), apenas extrai,
-        classifica e grava a saída.
-        """
+        """Executa o pipeline."""
         documents = TextDirectoryLoader(txt_directory).load()
         predictions = self._detector.detect_many(documents)
 
@@ -93,7 +89,6 @@ class CitationExtractionApplication:
             }
 
         if results:
-            # A avaliação da extração usa as mesmas citações que vão para a saída.
             predictions = {
                 documento_id: [item.citacao for item in items]
                 for documento_id, items in results.items()

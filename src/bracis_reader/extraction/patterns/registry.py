@@ -7,27 +7,15 @@ from bracis_reader.extraction.patterns.jurisprudence import (
 )
 from bracis_reader.extraction.patterns.legislation import build_legislation_patterns
 
-# Alusões sem identificador nenhum ("jurisprudência pacífica desta Corte",
-# "normas de regência"). O gabarito oficial do Kaggle (goldenset_offsets.csv)
-# NÃO as anota: só as incompletas descritivas (tribunal, ano, relator) contam.
-# Prevê-las vira falso positivo, então ficam desligadas por padrão.
 GENERIC_PATTERN_NAMES = frozenset({"jurisprudencia_generica", "legislacao_generica"})
 
 
 class CitationPatternRegistry:
-    """Constrói o conjunto de padrões utilizados pelo detector.
-
-    A ordem importa: em empates de início e tamanho, o resolvedor de
-    sobreposição mantém o primeiro padrão encontrado. Os identificados vêm
-    antes dos genéricos.
-    """
+    """Constrói o conjunto de padrões utilizados pelo detector."""
 
     @classmethod
     def build(cls, include_generic: bool = False) -> tuple[CitationPattern, ...]:
-        """Cria os padrões usados na extração.
-
-        ``include_generic=True`` inclui também as alusões genéricas.
-        """
+        """Cria os padrões usados na extração."""
         patterns = (
             build_jurisprudence_patterns()
             + build_legislation_patterns()

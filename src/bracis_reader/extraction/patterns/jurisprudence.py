@@ -1,13 +1,4 @@
-"""Padrões de jurisprudência identificada: processos, súmulas, temas e OJs.
-
-Cada citação é descrita como uma composição de partes independentes:
-
-    [processo nº] CLASSE [no|na|nos|nas|em CLASSE]... [nº] NÚMERO [/UF]
-
-Cada parte aceita as variações do regulamento (abreviações, pontuação,
-maiúsculas, OCR e quebras de linha), então novas combinações são reconhecidas
-sem precisar de um exemplo no gabarito.
-"""
+"""Padrões de jurisprudência identificada: processos, súmulas, temas e OJs."""
 
 import re
 
@@ -36,7 +27,6 @@ from bracis_reader.extraction.patterns.text import (
 
 _PREPOSITIONS = {"de", "do", "da", "dos", "das", "em", "e", "no", "na"}
 
-# Siglas que só valem dentro de cadeias com hífen do TST ("E-ED-RR").
 _CHAIN_ONLY = {"E", "Ag", "R"}
 
 
@@ -64,14 +54,11 @@ def _acronym(acronym: str) -> str:
         return joined + r"\.?"
 
     if len(acronym.replace("-", "")) <= 2:
-        # Sigla curta: exige maiúsculas para não casar palavras ("re", "ao").
         variants = {compile_segments(acronym), compile_segments(acronym.upper())}
         return case_sensitive(any_of(variants))
     return compile_segments(acronym)
 
 
-# Siglas se compõem por prefixação: Ag + REsp = AgREsp, E + REsp = EREsp,
-# Ag + AIRR = AgAIRR, AgR + AI = AgRAI. O prefixo é opcional.
 _ACRONYM_PREFIX = any_of(
     _acronym(p) for p in ("Ag", "AgR", "AgRg", "AgInt", "E", "ED", "EDcl", "A")
 )
@@ -80,11 +67,8 @@ _ACRONYM_MAIN = rf"(?:{_ACRONYM_PREFIX}(?=[A-Z]))?{_BASES}"
 _ACRONYM_ANY = any_of([_ACRONYM_MAIN] + [_acronym(a) for a in _CHAIN_ONLY])
 _FULL_NAME = any_of(_class_name(name) for name in CLASS_NAMES)
 
-# Qualificador que pode seguir uma sigla ("REsp Eleitoral", "Ap. Criminal").
 _QUALIFIER = any_phrase(("eleitoral", "criminal", "cível", "trabalhista", "militar"))
 
-# Uma "unidade" é uma classe: nome por extenso, sigla, ou cadeia de siglas
-# com hífen no estilo do TST (E-ED-RR, AgR-REspe).
 _HYPHEN = r"\s*-\s*"
 _CLASS_UNIT = (
     rf"(?:{_FULL_NAME}"
@@ -96,7 +80,6 @@ _CONNECTOR = (
 )
 _ORDINAL = any_phrase(("primeiro", "segundo", "terceiro", "quarto", "quinto", "sexto"))
 
-# Classe completa: "Terceiro AG.REG na Rcl", "EDcl no AgInt no AREsp".
 CLASS_EXPRESSION = (
     rf"(?:{_ORDINAL}{SPACE})?{_CLASS_UNIT}(?:{_CONNECTOR}{_CLASS_UNIT}){{0,5}}"
 )
@@ -126,7 +109,7 @@ _SUMULA_WORD = any_of(
         fuzzy_word("súmula"),
         fuzzy_word("súm") + r"\.",
         fuzzy_word("enunciado"),
-        case_sensitive("SV"),  # Súmula Vinculante
+        case_sensitive("SV"),
     ]
 )
 SUMULA = (

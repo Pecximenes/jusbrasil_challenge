@@ -1,12 +1,4 @@
-"""Mede a taxa de acerto de cada regra de classificação.
-
-Serve para calibrar a confiança (bônus de calibração do desafio): uma regra
-que acerta 98% das vezes deve informar confiança perto de 0,98.
-
-Uma previsão conta como acerto quando pareia com o gabarito (IoU >= 0,5), a
-classe coincide e, se for ``real``, o id está entre os aceitos. Previsões que
-não pareiam com nada contam como erro da regra que as produziu.
-"""
+"""Mede a taxa de acerto de cada regra de classificação."""
 
 from collections import defaultdict
 
@@ -14,7 +6,7 @@ from bracis_reader.domain.models import ClassifiedCitation
 from bracis_reader.evaluation.evaluator import match_spans
 from bracis_reader.evaluation.goldenset import GoldCitation
 
-RuleStats = dict[str, list[int]]  # regra -> [acertos, total]
+RuleStats = dict[str, list[int]]
 
 
 def rule_of(item: ClassifiedCitation) -> str:

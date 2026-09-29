@@ -1,18 +1,4 @@
-"""Avaliação da classificação (real / inventada / incompleta).
-
-Critério, seguindo o regulamento:
-
-1. Previsão e gabarito são pareados por IoU >= 0,5 (um-para-um).
-2. Um par é **acerto** quando a classe coincide e, se a classe é ``real``,
-   o ``id_canonico`` previsto está no conjunto aceito pelo gabarito.
-3. Para cada classe: TP = acertos daquela classe; FP = previsões daquela
-   classe que não são acerto; FN = citações do gabarito daquela classe que
-   não foram acertadas (inclusive as que nem foram extraídas).
-4. Documentos do nível 2 pesam 2x, como na nota oficial.
-
-A métrica oficial exata está no ``kaggle_metric.py`` da organização, que não
-veio com os dados; esta é uma aproximação fiel às regras descritas no PDF.
-"""
+"""Avaliação da classificação (real / inventada / incompleta)."""
 
 from collections import Counter
 from dataclasses import dataclass

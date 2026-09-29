@@ -1,24 +1,4 @@
-"""Classificação de cada citação em real, inventada ou incompleta.
-
-Regra do regulamento, aplicada à base canônica:
-
-    feitos encontrados   classe       saída
-    exatamente 1         real         id_canonico de qualquer registro do feito
-    0                    inventada    sem resolução
-    2 ou mais            incompleta   sem resolução (não há como desempatar)
-
-Citações sem identificador suficiente para montar a consulta ("jurisprudência
-pacífica desta Corte") são incompletas sem passar pela base.
-
-O caminho de cada citação depende do padrão que a encontrou:
-
-- processo / número CNJ  -> número normalizado no índice de feitos
-- súmula                 -> catálogo de súmulas (tribunal + número)
-- dispositivo legal      -> catálogo de dispositivos (lei + artigo)
-- tema / OJ              -> não existem na base: inventada
-- decisão descritiva     -> contagem por tribunal, ano e relator
-- genéricas              -> incompleta
-"""
+"""Classificação de cada citação em real, inventada ou incompleta."""
 
 import re
 from dataclasses import dataclass
@@ -53,7 +33,6 @@ _COURT_NAMES = {
 }
 _CNJ_SEGMENT_COURT = {"5": "TST", "6": "TSE", "7": "STM"}
 
-# Pistas de tribunal pela classe, usadas só para desempatar.
 _CLASS_COURT_HINTS: tuple[tuple[str, str], ...] = (
     (r"eleitoral|respe|\bagr-", "TSE"),
     (r"\btst\b|\b(?:ai)?rr\b|\barr\b|revista", "TST"),
@@ -62,8 +41,6 @@ _CLASS_COURT_HINTS: tuple[tuple[str, str], ...] = (
     (r"\bre\b|\bare\b|extraordin|\badi\b|\badpf\b|\badc\b", "STF"),
 )
 
-# Marcadores de recurso sobre recurso. "AgInt no REsp 1" e "REsp 1" são o
-# mesmo feito, mas registros diferentes; o marcador escolhe o registro.
 _APPEAL_MARKERS = {
     "agravo": (
         r"\bag(?:int|rg|r|reg)?\b|\bag\.\s?(?:int|reg|rg)"
@@ -90,12 +67,10 @@ _RAPPORTEUR = re.compile(
     r"(?:relatoria\s+d\w{0,2}|relatad[oa]\s+pel[oa]|\brel(?:ator|atora)?\.?"
     rf"|\b(?:d[oa]|pel[oa])(?=\s+{_TITLE}))"
     rf"(?:\s+{_TITLE}){{0,2}}"
-    # O nome é a sequência de palavras com inicial maiúscula que vem depois.
     r"\s+(?P<nome>(?-i:[A-ZÀ-Ý][\wÀ-ÿ'’]+(?:\s+(?:(?:d[aeo]s?|D[AEOaeo]S?|e)\s+)?"
     r"[A-ZÀ-Ý][\wÀ-ÿ'’]+)*))",
     re.IGNORECASE,
 )
-# Número começa por dígito real, ou por letra-dígito seguida de dígito ("l86").
 _NUM = r"(?:[0-9]|[OoIlLSs](?=[.\s]?[0-9º°]))[0-9OoIlLSs.]*"
 _ARTICLE_NUMBER = re.compile(rf"art(?:igo)?s?\.?\s*({_NUM})", re.I)
 _SUMULA_NUMBER = re.compile(
@@ -107,7 +82,7 @@ _SUMULA_NUMBER = re.compile(
 class _Resolution:
     classificacao: str
     id_canonico: int | None
-    regra: str  # chave da tabela de confiança calibrada
+    regra: str
     motivo: str
 
 
@@ -133,8 +108,6 @@ class CitationClassifier:
         self._base = base
         self._sumulas = self._resolve_catalog_sumulas()
         self._dispositivos = self._resolve_catalog_dispositivos()
-
-    # ------------------------------------------------------------- catálogo
 
     def _record_starting_with(self, natureza: str, prefix: str) -> int:
         wanted = _plain(prefix)
@@ -166,8 +139,6 @@ class CitationClassifier:
             for entry in DISPOSITIVOS
         }
 
-    # -------------------------------------------------------------- público
-
     def classify(self, citation: CitationCandidate) -> ClassifiedCitation:
         """Classifica uma citação encontrada pelo detector."""
         resolver = {
@@ -192,8 +163,6 @@ class CitationClassifier:
         self, citations: list[CitationCandidate]
     ) -> list[ClassifiedCitation]:
         return [self.classify(citation) for citation in citations]
-
-    # ------------------------------------------------------------- caminhos
 
     def _by_process_number(self, trecho: str) -> _Resolution:
         keys = extract_numbers(trecho)
@@ -302,7 +271,6 @@ class CitationClassifier:
             return _Resolution("incompleta", None, "artigo_sem_numero", "sem número")
         artigo = int(to_digits(match.group(1)) or 0)
         law_text = _plain(trecho[match.end() :])
-        # "Complernentar" -> "Complementar": desfaz a troca m -> rn do OCR.
         variants = (law_text, law_text.replace("rn", "m"))
         lei = next(
             (
@@ -337,8 +305,6 @@ class CitationClassifier:
                 "real", min(feito.ids), "descricao_unica", "descrição única na base"
             )
         if not feitos:
-            # Pode ser nome com ruído que não casou; o regulamento chamaria de
-            # inventada, mas a leitura da descrição é incerta demais.
             return _Resolution(
                 "incompleta",
                 None,

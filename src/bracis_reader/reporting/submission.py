@@ -1,10 +1,4 @@
-"""Gravação da saída no formato do desafio.
-
-- um ``.json`` por documento, no formato do contrato de entrada e saída;
-- ``submission.csv`` com uma linha por documento, no mesmo formato gerado
-  por ``refs/json_to_submission.py``:
-  ``inicio,fim,classe,id_canonico,confianca|...`` ("-" quando ausente).
-"""
+"""Gravação da saída no formato do desafio."""
 
 import csv
 import json

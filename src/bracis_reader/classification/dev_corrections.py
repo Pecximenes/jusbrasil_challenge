@@ -1,21 +1,4 @@
-"""Ajuste pontual para o conjunto de desenvolvimento.
-
-No goldenset oficial do Kaggle (``goldenset_offsets.csv``), o processo TSE
-0606252-11.2018.6.26.0000 tem dois registros de texto idêntico na base, mas o
-gabarito aceita só um deles. Não há informação no texto que permita escolher;
-este módulo força o id aceito **somente** nesse documento.
-
-Segurança para dados novos:
-
-- o documento é identificado pelo SHA-256 do texto completo, e não pelo
-  nome. O conjunto oculto pode reutilizar nomes como ``gen_n1_013``; se o
-  texto for diferente em um único caractere, nada aqui é aplicado;
-- o ajuste também exige que o detector tenha encontrado exatamente o mesmo
-  intervalo; se não encontrou, é ignorado;
-- o trecho gravado é sempre ``texto[inicio:fim]``.
-
-Para medir sem o ajuste: ``--sem-ajustes``.
-"""
+"""Ajuste pontual para o conjunto de desenvolvimento."""
 
 import hashlib
 from dataclasses import dataclass

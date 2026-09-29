@@ -1,15 +1,4 @@
-"""Acesso à base canônica ``desafio1_bracis.db`` e índices para consulta.
-
-O PDF do desafio alerta para a principal armadilha: uma busca pelo número
-devolve também os acórdãos que apenas *citam* aquele processo. Por isso o
-índice é montado a partir do número do próprio processo, que fica no
-cabeçalho do documento (ou, no TST, na frase "Vistos, relatados e discutidos
-estes autos de ... nº ...").
-
-Um *feito* é identificado por tribunal + número normalizado. O mesmo feito
-pode ter vários registros (embargos de declaração, por exemplo); qualquer um
-deles é um ``id_canonico`` aceito.
-"""
+"""Acesso à base canônica ``desafio1_bracis.db`` e índices para consulta."""
 
 import re
 import sqlite3
@@ -34,10 +23,7 @@ _PROCESS = re.compile(PROCESS, FLAGS)
 _CNJ = re.compile(CNJ_REFERENCE, FLAGS)
 _NUMBER = re.compile(PROCESS_NUMBER, FLAGS)
 _UF = re.compile(UF_SUFFIX + r"\s*$", FLAGS)
-# Número em formato CNJ, inclusive com sequencial curto ("374-42.2012.6.16.0066"),
-# usado quando o cabeçalho traz uma classe fora do vocabulário.
 _LOOSE_CNJ = re.compile(r"\d{1,7}\s?[-–]\s?\d{2}\.\s?\d{4}\.\s?\d\.\s?\d{2}\.\s?\d{4}")
-# "Vistos, relatados e discutidos estes autos de CLASSE nº NÚMERO, em que..."
 _JUDGED_CASE = re.compile(
     r"(?:vistos|relatados)[^.]{0,60}?autos\s+d[eo]s?\s+"
     r"(?P<objeto>.{0,300}?)(?:,|\s+em\s+que\b)",
@@ -70,7 +56,6 @@ class Feito:
     numero: str
     ufs: set[str] = field(default_factory=set)
     ids: set[int] = field(default_factory=set)
-    # Trecho "CLASSE nº NÚMERO" de cada registro, para desempatar registros.
     headings: dict[int, str] = field(default_factory=dict)
 
 
@@ -114,7 +99,7 @@ def _header_uf(header: str) -> str | None:
     if uf:
         return uf
     plain = re.sub(r"\s+", " ", strip_accents(header).upper())
-    plain = re.sub(r"\b([A-Z]) (?=[A-Z]\b)", r"\1", plain)  # "B A H I A"
+    plain = re.sub(r"\b([A-Z]) (?=[A-Z]\b)", r"\1", plain)
     for name, code in sorted(STATE_NAMES.items(), key=lambda item: -len(item[0])):
         if re.search(rf"\b{name}\b", plain):
             return code
@@ -134,8 +119,6 @@ class CanonicalBase:
         self._by_number: dict[str, list[Feito]] = defaultdict(list)
         for feito in self.feitos.values():
             self._by_number[feito.numero].append(feito)
-
-    # ------------------------------------------------------------------ load
 
     def _load_records(self) -> list[Record]:
         with sqlite3.connect(self._db_path) as connection:
@@ -162,13 +145,7 @@ class CanonicalBase:
 
     @staticmethod
     def own_numbers(texto: str) -> tuple[list[str], str | None, str]:
-        """Números do próprio processo (não os que ele apenas cita).
-
-        1. A frase "estes autos de CLASSE nº NÚMERO, em que..." identifica o
-           processo sem ambiguidade; quando existe, é a única fonte usada.
-        2. Senão, vale o primeiro número do cabeçalho e, logo em seguida, um
-           eventual número CNJ entre parênteses (padrão do TSE).
-        """
+        """Números do próprio processo (não os que ele apenas cita)."""
         header = texto[:HEADER_WINDOW]
         snippets: list[str] = []
 
@@ -193,8 +170,6 @@ class CanonicalBase:
                 if key not in numbers:
                     numbers.append(key)
         return numbers, _header_uf(header), " ".join(snippets)
-
-    # ----------------------------------------------------------------- query
 
     def find_feitos(
         self,
@@ -244,11 +219,7 @@ def _similar_word(a: str, b: str) -> bool:
 
 
 def _same_person(cited: str, registered: str) -> bool:
-    """Todas as palavras citadas precisam estar no nome registrado.
-
-    "Rosa Weber" casa "Rosa Maria Pires Weber", e uma letra trocada por
-    palavra é tolerada ("Júnlor" x "Júnior").
-    """
+    """Todas as palavras citadas precisam estar no nome registrado."""
     cited_words = [w for w in cited.split() if len(w) > 2]
     registered_words = registered.split()
     return bool(cited_words) and all(

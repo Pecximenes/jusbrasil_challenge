@@ -1,14 +1,8 @@
-"""Normalização de identificadores antes da consulta à base.
-
-O regulamento garante que o ruído do nível 2 é sempre recuperável: um dígito
-nunca vira outro dígito, só letras parecidas. Então basta mapear essas letras
-de volta e descartar a pontuação.
-"""
+"""Normalização de identificadores antes da consulta à base."""
 
 import re
 import unicodedata
 
-# Letra que o OCR confunde com dígito -> dígito original.
 OCR_TO_DIGIT = {
     "O": "0", "o": "0", "D": "0", "Q": "0",
     "I": "1", "l": "1", "L": "1", "i": "1", "|": "1",
@@ -20,7 +14,6 @@ OCR_TO_DIGIT = {
     "g": "9", "q": "9",
 }  # fmt: skip
 
-# Tamanho da parte fixa de um número CNJ: DD + AAAA + J + TR + OOOO.
 _CNJ_TAIL = 13
 
 
@@ -39,12 +32,7 @@ def looks_like_cnj(digits: str) -> bool:
 
 
 def number_key(number: str) -> str | None:
-    """Chave canônica de um número de processo, independente da formatação.
-
-    - CNJ: sequencial sem zeros à esquerda + 13 dígitos finais
-      ("0600216-46.2020.6.14.0022" e "600216-46.2020.6.14.0022" coincidem);
-    - demais: o número sem zeros à esquerda.
-    """
+    """Chave canônica de um número de processo, independente da formatação."""
     digits = to_digits(number).lstrip("0")
     if not digits:
         return "0" if to_digits(number) else None
@@ -66,17 +54,13 @@ def strip_accents(text: str) -> str:
 
 
 def normalize_name(name: str) -> str:
-    """Nome de pessoa comparável: sem acento, minúsculo, espaços simples.
-
-    Também desfaz confusões de OCR comuns em nomes ("rn" -> "m").
-    """
+    """Nome de pessoa comparável: sem acento, minúsculo, espaços simples."""
     text = strip_accents(name).lower()
     text = re.sub(r"\b(min|ministro|ministra|des|desembargador|rel)\b\.?", " ", text)
     text = re.sub(r"[^a-z ]", " ", text)
     return re.sub(r"\s+", " ", text).strip()
 
 
-# Estados por extenso (cabeçalhos do STF e do TSE) -> sigla.
 STATE_NAMES = {
     "ACRE": "AC", "ALAGOAS": "AL", "AMAPA": "AP", "AMAZONAS": "AM",
     "BAHIA": "BA", "CEARA": "CE", "DISTRITO FEDERAL": "DF",

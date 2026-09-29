@@ -1,13 +1,4 @@
-"""Avaliação das citações extraídas contra o goldenset.
-
-Dois critérios de acerto estão disponíveis:
-
-- ``iou_threshold=0.5`` (padrão): mesmo critério da avaliação oficial do
-  desafio. Previsão e gabarito formam um par quando a sobreposição dos
-  intervalos (IoU) é de pelo menos 50%. Cada citação só pode ser usada em um
-  par.
-- ``iou_threshold=None``: correspondência exata de ``(inicio, fim, trecho)``.
-"""
+"""Avaliação das citações extraídas contra o goldenset."""
 
 from dataclasses import dataclass
 
@@ -73,10 +64,7 @@ def match_spans(
     expected: list[Span],
     iou_threshold: float,
 ) -> list[tuple[int, int]]:
-    """Pareia previsões e gabarito um-para-um, do maior IoU para o menor.
-
-    Retorna os pares ``(indice_previsto, indice_esperado)``.
-    """
+    """Pareia previsões e gabarito um-para-um, do maior IoU para o menor."""
     candidates = sorted(
         (
             (span_iou(pred, gold), i, j)

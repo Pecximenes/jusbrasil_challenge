@@ -19,9 +19,10 @@ class CitationDetector:
         body_extractor: DocumentBodyExtractor | None = None,
         patterns: tuple[CitationPattern, ...] | None = None,
         overlap_resolver: CitationOverlapResolver | None = None,
+        include_generic: bool = False,
     ) -> None:
         self._body_extractor = body_extractor or DocumentBodyExtractor()
-        self._patterns = patterns or CitationPatternRegistry.build()
+        self._patterns = patterns or CitationPatternRegistry.build(include_generic)
         self._overlap_resolver = overlap_resolver or CitationOverlapResolver()
 
     def detect(self, document: TextDocument) -> list[CitationCandidate]:

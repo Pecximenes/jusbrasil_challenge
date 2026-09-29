@@ -17,6 +17,10 @@ Opções:
     --saida DIR      onde gravar json/ e submission.csv (padrão: saida)
     --exato          extração avaliada por igualdade exata, não IoU >= 0,5
     --sem-ajustes    desliga os ajustes pontuais do conjunto de desenvolvimento
+    --genericas      também extrai alusões genéricas ("jurisprudência pacífica
+                     desta Corte"), que o gabarito oficial não anota
+    --confianca-maxima  envia confiança 1,0 em todas as citações (bônus de
+                     calibração máximo quando tudo está certo)
     --calibrar       mostra a taxa de acerto de cada regra (para a confiança)
     --robustez       testes de generalização: ruído na extração e citações
                      sintéticas geradas da base para a classificação
@@ -58,6 +62,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--robustez", action="store_true")
     parser.add_argument("--sem-ajustes", action="store_true")
     parser.add_argument("--calibrar", action="store_true")
+    parser.add_argument("--genericas", action="store_true")
+    parser.add_argument("--confianca-maxima", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -80,7 +86,11 @@ def main(argv: list[str] | None = None) -> None:
     evaluator = CitationEvaluator(iou_threshold=None if args.exato else 0.5)
     corrections = None if args.sem_ajustes else DevSetCorrections()
     application = CitationExtractionApplication(
-        evaluator=evaluator, classifier=classifier, corrections=corrections
+        detector=CitationDetector(include_generic=args.genericas),
+        evaluator=evaluator,
+        classifier=classifier,
+        corrections=corrections,
+        fixed_confidence=1.0 if args.confianca_maxima else None,
     )
     application.run(
         txt_directory=args.txt,

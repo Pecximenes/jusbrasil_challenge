@@ -12,6 +12,7 @@ from bracis_reader.evaluation.classification import (
 )
 from bracis_reader.evaluation.evaluator import CitationEvaluator, EvaluationSummary
 from bracis_reader.evaluation.goldenset import GoldensetLoader, load_annotations
+from bracis_reader.evaluation.official import official_score
 from bracis_reader.extraction.detector import CitationDetector
 from bracis_reader.ingestion.directory_loader import TextDirectoryLoader
 from bracis_reader.ingestion.level_splitter import DocumentLevelSplitter
@@ -39,12 +40,14 @@ class CitationExtractionApplication:
         reporter: ConsoleReportPrinter | None = None,
         classifier: CitationClassifier | None = None,
         corrections: DevSetCorrections | None = None,
+        fixed_confidence: float | None = None,
     ) -> None:
         self._detector = detector or CitationDetector()
         self._evaluator = evaluator or CitationEvaluator()
         self._reporter = reporter or ConsoleReportPrinter()
         self._classifier = classifier
         self._corrections = corrections
+        self._fixed_confidence = fixed_confidence
 
     def run(
         self,
@@ -80,6 +83,15 @@ class CitationExtractionApplication:
                         "ver a métrica sem eles)\n"
                     )
 
+        if results and self._fixed_confidence is not None:
+            results = {
+                documento_id: [
+                    item.model_copy(update={"confianca": self._fixed_confidence})
+                    for item in items
+                ]
+                for documento_id, items in results.items()
+            }
+
         if results:
             # A avaliação da extração usa as mesmas citações que vão para a saída.
             predictions = {
@@ -104,10 +116,12 @@ class CitationExtractionApplication:
                 criterion=self._evaluator.criterion,
             )
             if results:
+                annotations = load_annotations(goldenset_path)
                 classification_summary = ClassificationEvaluator().evaluate(
-                    results, load_annotations(goldenset_path)
+                    results, annotations
                 )
                 self._reporter.print_classification(classification_summary)
+                self._reporter.print_official(official_score(results, annotations))
 
         submission_path = None
         if output_directory is not None and results:

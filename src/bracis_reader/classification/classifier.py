@@ -58,6 +58,14 @@ def _appeal_markers(text: str) -> set[str]:
     }
 
 
+_SUMULA_TITLE = re.compile(
+    r"s[uú]mula\s+(?P<vinculante>vinculante\s+)?n[º°o]?\.?\s*(?P<numero>\d+)"
+    r"\s+d[oa]\s+(?P<tribunal>STF|STJ|TST|TSE|STM)\b",
+    re.IGNORECASE,
+)
+_ARTICLE_TITLE = re.compile(
+    r"artigo\s+(?P<artigo>\d+)\s*[º°o]?\s+d[aoe]s?\s+(?P<lei>.+)$", re.IGNORECASE
+)
 _YEAR = re.compile(r"\b(?:19|2[0O])[0-9OoIlSs]{2}\b")
 _TITLE = (
     r"(?:exm[oa]\.?\s+(?:(?:sr|sra)\.?\s+)?)?"
@@ -109,35 +117,59 @@ class CitationClassifier:
         self._sumulas = self._resolve_catalog_sumulas()
         self._dispositivos = self._resolve_catalog_dispositivos()
 
-    def _record_starting_with(self, natureza: str, prefix: str) -> int:
-        wanted = _plain(prefix)
+    def _first_line(self, natureza: str):
         for record in self._base.records:
-            if record.natureza != natureza:
-                continue
-            body = record.texto.split("\n", 1)[-1] if natureza == "sumula" else ""
-            if _plain(record.texto).startswith(wanted) or _plain(body).startswith(
-                wanted
-            ):
+            if record.natureza == natureza:
+                yield record, record.texto.split("\n", 1)[0]
+
+    def _record_containing(self, natureza: str, fragment: str) -> int | None:
+        wanted = _plain(fragment)
+        for record in self._base.records:
+            if record.natureza == natureza and wanted in _plain(record.texto):
                 return record.id
-        raise LookupError(f"Registro {natureza!r} não encontrado: {prefix!r}")
+        return None
 
     def _resolve_catalog_sumulas(self) -> dict[tuple[str, int, bool], int]:
-        return {
-            (
-                entry.tribunal,
-                entry.numero,
-                entry.vinculante,
-            ): self._record_starting_with("sumula", entry.inicio_do_texto)
-            for entry in SUMULAS
-        }
+        catalog: dict[tuple[str, int, bool], int] = {}
+        for record, title in self._first_line("sumula"):
+            match = _SUMULA_TITLE.match(title)
+            if match:
+                key = (
+                    match.group("tribunal").upper(),
+                    int(match.group("numero")),
+                    bool(match.group("vinculante")),
+                )
+                catalog[key] = record.id
+        for entry in SUMULAS:
+            key = (entry.tribunal, entry.numero, entry.vinculante)
+            if key not in catalog:
+                record_id = self._record_containing("sumula", entry.inicio_do_texto)
+                if record_id is not None:
+                    catalog[key] = record_id
+        return catalog
 
     def _resolve_catalog_dispositivos(self) -> dict[tuple[str, int], int]:
-        return {
-            (entry.lei, entry.artigo): self._record_starting_with(
-                "dispositivo", entry.inicio_do_texto
+        catalog: dict[tuple[str, int], int] = {}
+        for record, title in self._first_line("dispositivo"):
+            match = _ARTICLE_TITLE.match(title)
+            if not match:
+                continue
+            law_text = _plain(match.group("lei"))
+            law = next(
+                (law for law, pattern in LAW_PATTERNS if re.search(pattern, law_text)),
+                None,
             )
-            for entry in DISPOSITIVOS
-        }
+            if law:
+                catalog[(law, int(match.group("artigo")))] = record.id
+        for entry in DISPOSITIVOS:
+            key = (entry.lei, entry.artigo)
+            if key not in catalog:
+                record_id = self._record_containing(
+                    "dispositivo", entry.inicio_do_texto
+                )
+                if record_id is not None:
+                    catalog[key] = record_id
+        return catalog
 
     def classify(self, citation: CitationCandidate) -> ClassifiedCitation:
         """Classifica uma citação encontrada pelo detector."""

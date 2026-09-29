@@ -6,7 +6,6 @@ from pathlib import Path
 
 from bracis_reader.classification.canonical_base import CanonicalBase
 from bracis_reader.classification.classifier import CitationClassifier
-from bracis_reader.classification.dev_corrections import DevSetCorrections
 from bracis_reader.evaluation.calibration import laplace, measure_rules
 from bracis_reader.evaluation.evaluator import CitationEvaluator
 from bracis_reader.evaluation.goldenset import GoldensetLoader, load_annotations
@@ -20,6 +19,7 @@ DEFAULT_TXT_DIRECTORY = Path("data/txt")
 DEFAULT_GOLDENSET_PATH = Path("data/goldenset.csv")
 KAGGLE_TXT_DIRECTORY = Path("data/kaggle/txt")
 KAGGLE_GOLDENSET_PATH = Path("data/kaggle/goldenset.csv")
+KAGGLE_BASE_PATH = Path("data/kaggle/desafio1_bracis.db")
 DEFAULT_BASE_PATH = Path("refs/desafio1_bracis.db")
 DEFAULT_OUTPUT_DIRECTORY = Path("saida")
 
@@ -33,11 +33,10 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--gold", type=Path, default=None)
     parser.add_argument("--kaggle", action="store_true")
     parser.add_argument("--sem-gabarito", action="store_true")
-    parser.add_argument("--base", type=Path, default=DEFAULT_BASE_PATH)
+    parser.add_argument("--base", type=Path, default=None)
     parser.add_argument("--saida", type=Path, default=DEFAULT_OUTPUT_DIRECTORY)
     parser.add_argument("--exato", action="store_true")
     parser.add_argument("--robustez", action="store_true")
-    parser.add_argument("--sem-ajustes", action="store_true")
     parser.add_argument("--calibrar", action="store_true")
     parser.add_argument("--genericas", action="store_true")
     parser.add_argument("--confianca-maxima", action="store_true")
@@ -46,6 +45,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         args.txt = KAGGLE_TXT_DIRECTORY if args.kaggle else DEFAULT_TXT_DIRECTORY
     if args.gold is None:
         args.gold = KAGGLE_GOLDENSET_PATH if args.kaggle else DEFAULT_GOLDENSET_PATH
+    if args.base is None:
+        args.base = KAGGLE_BASE_PATH if args.kaggle else DEFAULT_BASE_PATH
     return args
 
 
@@ -66,12 +67,10 @@ def main(argv: list[str] | None = None) -> None:
 
     goldenset = None if args.sem_gabarito else args.gold
     evaluator = CitationEvaluator(iou_threshold=None if args.exato else 0.5)
-    corrections = None if args.sem_ajustes else DevSetCorrections()
     application = CitationExtractionApplication(
         detector=CitationDetector(include_generic=args.genericas),
         evaluator=evaluator,
         classifier=classifier,
-        corrections=corrections,
         fixed_confidence=1.0 if args.confianca_maxima else None,
     )
     application.run(

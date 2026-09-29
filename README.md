@@ -22,12 +22,13 @@ A saída é um JSON por documento e o `submission.csv` no formato do Kaggle.
 2. [Como rodar](#como-rodar)
 3. [Estrutura de pastas](#estrutura-de-pastas)
 4. [O que cada parte faz](#o-que-cada-parte-faz)
-5. [Como as citações são encontradas (regex)](#como-as-citações-são-encontradas-regex)
-6. [Como as citações são classificadas](#como-as-citações-são-classificadas)
-7. [Como a avaliação funciona](#como-a-avaliação-funciona)
-8. [Resultado atual](#resultado-atual)
-9. [Como evitamos sobreajuste ao goldenset](#como-evitamos-sobreajuste-ao-goldenset)
-10. [Problemas comuns](#problemas-comuns)
+5. [Arquitetura e princípios SOLID](#arquitetura-e-princípios-solid)
+6. [Como as citações são encontradas (regex)](#como-as-citações-são-encontradas-regex)
+7. [Como as citações são classificadas](#como-as-citações-são-classificadas)
+8. [Como a avaliação funciona](#como-a-avaliação-funciona)
+9. [Resultado atual](#resultado-atual)
+10. [Como evitamos sobreajuste ao goldenset](#como-evitamos-sobreajuste-ao-goldenset)
+11. [Problemas comuns](#problemas-comuns)
 
 ---
 
@@ -51,7 +52,7 @@ A saída é um JSON por documento e o `submission.csv` no formato do Kaggle.
                                └──────────────────┘  └──────────────────┘
 ```
 
-Tudo é coordenado por `pipeline.py`. Sem gabarito (caso do conjunto oculto),
+Tudo é coordenado por `application.py`, montado em `bootstrap.py`. Sem gabarito (caso do conjunto oculto),
 as etapas 1 a 4 rodam normalmente e a avaliação é pulada.
 
 ---
@@ -146,9 +147,13 @@ ruff check .    # verifica estilo e imports
 ├── refs/                          # Material da Jusbrasil, incluindo a base
 │   └── desafio1_bracis.db         #   canônica e o conversor de submissão
 ├── src/bracis_reader/             # Código do projeto
-│   ├── pipeline.py                # Orquestra o fluxo completo
-│   ├── __main__.py                # Linha de comando
-│   ├── domain/                    # Modelos de dados
+│   ├── cli.py                     # Linha de comando -> Settings
+│   ├── settings.py                # Configuração resolvida da execução
+│   ├── bootstrap.py               # Monta as implementações (raiz de composição)
+│   ├── application.py             # Caso de uso: ler, processar, avaliar, gravar
+│   ├── pipeline.py                # Extração + classificação, sem E/S
+│   ├── diagnostics.py             # Calibração e testes de robustez
+│   ├── domain/                    # Modelos e contratos (ports.py)
 │   ├── ingestion/                 # Etapa 1 — leitura dos documentos
 │   ├── extraction/                # Etapa 2 — detecção das citações
 │   │   └── patterns/              #   catálogo de regex
@@ -201,7 +206,11 @@ ruff check .    # verifica estilo e imports
 | `normalization.py` | — | Normaliza números (OCR, pontuação, formato CNJ) e nomes de relatores. |
 | `canonical_base.py` | `CanonicalBase` | Carrega a base e monta o índice de processos pelo número **do próprio processo**. |
 | `catalog.py` | — | Lista de reserva de súmulas e artigos, usada só na base antiga, que não tem títulos. |
-| `classifier.py` | `CitationClassifier` | Decide a classe, o `id_canonico` e a confiança de cada citação. |
+| `canonical_catalog.py` | `CanonicalCatalog` | Índices de súmulas e artigos pelo título do registro. |
+| `legal_text.py` | — | Normalização de texto e reconhecimento do tribunal citado. |
+| `resolvers/` | `ProcessNumberResolver`, `SumulaResolver`, `ArticleResolver`, `DescriptionResolver`, ... | Uma estratégia de decisão por padrão de citação. |
+| `confidence.py` | `CalibratedConfidence`, `FixedConfidence` | Políticas de confiança por regra. |
+| `classifier.py` | `CitationClassifier` | Encaminha cada citação ao resolvedor do seu padrão e aplica a política de confiança. |
 
 ### `reporting/` — etapa 4: saída
 
@@ -216,9 +225,54 @@ ruff check .    # verifica estilo e imports
 |---|---|---|
 | `goldenset.py` | `GoldensetLoader`, `load_annotations` | Lê o gabarito. |
 | `evaluator.py` | `CitationEvaluator` | Métricas da extração (IoU ≥ 0,5 ou exato). |
+| `service.py` | `GoldensetEvaluationService` | Reúne as métricas de extração, classificação e a nota oficial. |
 | `classification.py` | `ClassificationEvaluator` | Métricas da classificação por classe, com nível 2 pesando 2x. |
 | `robustness.py` | `NoiseRobustnessEvaluator` | Aplica ruído às citações do gabarito e mede se continuam sendo encontradas. |
 | `synthetic.py` | `SyntheticCitationEvaluator` | Gera citações novas a partir da base e confere a classe. |
+
+---
+
+## Arquitetura e princípios SOLID
+
+```text
+cli.py ──▶ Settings ──▶ bootstrap.build() ──▶ CitationExtractionApplication
+                                                 │
+            DocumentSource ◀─────────────────────┤  (TextDirectoryLoader)
+            CitationPipeline ◀───────────────────┤
+              ├─ CitationExtractor               │  (CitationDetector)
+              └─ CitationClassifierPort          │  (CitationClassifier)
+                   ├─ resolvers por padrão       │
+                   └─ ConfidencePolicy           │
+            GoldensetEvaluationService ◀─────────┤  (só com gabarito)
+            ResultWriter ◀───────────────────────┘  (SubmissionWriter)
+```
+
+| Princípio | Onde aparece |
+|---|---|
+| **S** — responsabilidade única | `cli.py` só lê argumentos; `bootstrap.py` só monta objetos; `pipeline.py` só extrai e classifica; `evaluation/service.py` só mede; `diagnostics.py` só roda os relatórios auxiliares. No classificador, cada tipo de citação tem o seu resolvedor e os índices de súmulas/artigos ficam em `CanonicalCatalog`. |
+| **O** — aberto/fechado | Um novo tipo de citação entra registrando outro resolvedor em `default_resolvers`, sem alterar `CitationClassifier`. Uma nova forma de calcular confiança é outra `ConfidencePolicy`. |
+| **L** — substituição | Todo resolvedor devolve uma `Resolution` com o mesmo contrato; `CalibratedConfidence` e `FixedConfidence` são intercambiáveis. `--confianca-maxima` apenas troca a política, em vez de reescrever os resultados depois. |
+| **I** — segregação de interfaces | `domain/ports.py` define contratos pequenos (`DocumentSource`, `CitationExtractor`, `CitationClassifierPort`, `ResultWriter`), e cada consumidor depende só do que usa. |
+| **D** — inversão de dependência | `CitationExtractionApplication` e `CitationPipeline` recebem as dependências prontas e conhecem apenas os protocolos. `bootstrap.py` é o único lugar que escolhe as classes concretas. |
+
+A refatoração não mudou o comportamento: os JSONs, o `submission.csv` e toda
+a saída do terminal (inclusive `--robustez` e `--calibrar`) são idênticos
+byte a byte aos da versão anterior, e a nota continua 1,10000.
+
+Exemplo de uso como biblioteca, trocando uma peça sem tocar no resto:
+
+```python
+from bracis_reader.classification import CanonicalBase, CitationClassifier
+from bracis_reader.classification.confidence import FixedConfidence
+from bracis_reader.extraction import CitationDetector
+from bracis_reader.ingestion import TextDirectoryLoader
+from bracis_reader.pipeline import CitationPipeline
+
+base = CanonicalBase("data/kaggle/desafio1_bracis.db")
+classifier = CitationClassifier.from_base(base, FixedConfidence(1.0))
+pipeline = CitationPipeline(CitationDetector(), classifier)
+output = pipeline.process(TextDirectoryLoader("data/kaggle/txt").load())
+```
 
 ---
 

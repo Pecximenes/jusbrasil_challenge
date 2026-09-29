@@ -36,6 +36,6 @@ class Settings:
     output: Path = DEFAULT_OUTPUT_DIRECTORY
     exact_match: bool = False
     include_generic: bool = False
-    max_confidence: bool = False
+    calibrated_confidence: bool = False
     robustness: bool = False
     calibration: bool = False

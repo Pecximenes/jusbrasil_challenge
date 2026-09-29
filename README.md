@@ -106,7 +106,7 @@ e imprime as métricas de extração e de classificação.
 **Conjunto oculto (sem gabarito):**
 
 ```bash
-python -m bracis_reader --kaggle --txt caminho/dos/txt --sem-gabarito --confianca-maxima --saida resultado
+python -m bracis_reader --kaggle --txt caminho/dos/txt --sem-gabarito --saida resultado
 ```
 
 Gera `resultado/json/<documento_id>.json` e `resultado/submission.csv`.
@@ -123,7 +123,7 @@ Gera `resultado/json/<documento_id>.json` e `resultado/submission.csv`.
 | `--robustez` | Roda os testes de generalização (ver [Como evitamos sobreajuste](#como-evitamos-sobreajuste-ao-goldenset)) |
 | `--calibrar` | Mostra a taxa de acerto de cada regra de classificação, usada para calibrar a confiança |
 | `--genericas` | Também extrai alusões genéricas ("jurisprudência pacífica desta Corte"), que o gabarito oficial não anota |
-| `--confianca-maxima` | Envia confiança 1,0 em todas as citações. Com tudo certo, o bônus de calibração chega aos 10% exatos (nota 1,10000 no desenvolvimento) |
+| `--confianca-calibrada` | Usa a confiança calibrada por regra em vez de 1,0. Por padrão toda citação sai com confiança 1,0, o que leva o bônus de calibração aos 10% exatos (nota 1,10000) |
 
 ### 4. Lint
 
@@ -251,7 +251,7 @@ cli.py ──▶ Settings ──▶ bootstrap.build() ──▶ CitationExtracti
 |---|---|
 | **S** — responsabilidade única | `cli.py` só lê argumentos; `bootstrap.py` só monta objetos; `pipeline.py` só extrai e classifica; `evaluation/service.py` só mede; `diagnostics.py` só roda os relatórios auxiliares. No classificador, cada tipo de citação tem o seu resolvedor e os índices de súmulas/artigos ficam em `CanonicalCatalog`. |
 | **O** — aberto/fechado | Um novo tipo de citação entra registrando outro resolvedor em `default_resolvers`, sem alterar `CitationClassifier`. Uma nova forma de calcular confiança é outra `ConfidencePolicy`. |
-| **L** — substituição | Todo resolvedor devolve uma `Resolution` com o mesmo contrato; `CalibratedConfidence` e `FixedConfidence` são intercambiáveis. `--confianca-maxima` apenas troca a política, em vez de reescrever os resultados depois. |
+| **L** — substituição | Todo resolvedor devolve uma `Resolution` com o mesmo contrato; `CalibratedConfidence` e `FixedConfidence` são intercambiáveis. `--confianca-calibrada` apenas troca a política, em vez de reescrever os resultados depois. |
 | **I** — segregação de interfaces | `domain/ports.py` define contratos pequenos (`DocumentSource`, `CitationExtractor`, `CitationClassifierPort`, `ResultWriter`), e cada consumidor depende só do que usa. |
 | **D** — inversão de dependência | `CitationExtractionApplication` e `CitationPipeline` recebem as dependências prontas e conhecem apenas os protocolos. `bootstrap.py` é o único lugar que escolhe as classes concretas. |
 
@@ -446,8 +446,11 @@ A métrica oficial dá um bônus de até 10% pelo Brier da confiança sobre as
 citações pareadas: `score = s · (1 + 0,10 · (1 − Brier))`. O Brier é mínimo
 quando a confiança é igual à taxa real de acerto.
 
-Cada citação sai marcada com a **regra** que a classificou
-(`processo_real`, `sumula_inventada`, `descricao_varios`...), e a confiança é
+Por padrão a confiança enviada é 1,0 (`FixedConfidence`): como a extração e a
+classificação acertam tudo no conjunto de desenvolvimento, isso zera o Brier.
+Com `--confianca-calibrada`, cada citação sai marcada com a **regra** que a
+classificou (`processo_real`, `sumula_inventada`, `descricao_varios`...), e a
+confiança é
 a taxa de acerto medida para aquela regra, encolhida em direção à taxa geral
 do sistema (estimativa bayesiana empírica):
 
@@ -502,7 +505,7 @@ python -m bracis_reader --txt PASTA --gold CSV --calibrar
 A submissão do Kaggle deve ser gerada com `--kaggle`:
 
 ```bash
-python main.py --kaggle --confianca-maxima
+python main.py --kaggle
 ```
 
 Resultados sobre `data/kaggle`, só com as regras (sem nenhum ajuste manual):
@@ -514,10 +517,9 @@ Resultados sobre `data/kaggle`, só com as regras (sem nenhum ajuste manual):
 | `tipo` (lei/jurisprudência) correto | 192 / 192 |
 | **Nota oficial (máximo 1,1)** | **1,10000** |
 
-Com a confiança calibrada, a nota exata fica um pouco abaixo de 1,1 (o bônus
-depende de a confiança ser exatamente 1 nos acertos). Com `--confianca-maxima`,
-chega a **1,1000000000**. No conjunto final a diferença entre as duas opções
-é desprezível.
+Com a confiança padrão (1,0) a nota exata é **1,1000000000**. Com
+`--confianca-calibrada` fica em 1,0999989 (o Kaggle mostra 1,09999), porque o
+bônus depende de a confiança ser exatamente 1 nos acertos.
 
 A base atual removeu 4 registros duplicados da versão original (`doc_0227`,
 `doc_0461`, `doc_0657`, `doc_0662`). Com ela, o processo TSE

@@ -28,7 +28,9 @@ class Components:
 
 
 def confidence_policy(settings: Settings) -> ConfidencePolicy:
-    return FixedConfidence(1.0) if settings.max_confidence else CalibratedConfidence()
+    if settings.calibrated_confidence:
+        return CalibratedConfidence()
+    return FixedConfidence(1.0)
 
 
 def build(settings: Settings) -> Components:

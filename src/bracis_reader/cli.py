@@ -28,7 +28,10 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--robustez", action="store_true")
     parser.add_argument("--calibrar", action="store_true")
     parser.add_argument("--genericas", action="store_true")
-    parser.add_argument("--confianca-maxima", action="store_true")
+    parser.add_argument("--confianca-calibrada", action="store_true")
+    parser.add_argument(
+        "--confianca-maxima", action="store_true", help=argparse.SUPPRESS
+    )
     return parser
 
 
@@ -43,7 +46,7 @@ def parse_settings(argv: list[str] | None = None) -> Settings:
         output=args.saida,
         exact_match=args.exato,
         include_generic=args.genericas,
-        max_confidence=args.confianca_maxima,
+        calibrated_confidence=args.confianca_calibrada,
         robustness=args.robustez,
         calibration=args.calibrar,
     )

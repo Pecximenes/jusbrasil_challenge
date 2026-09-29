@@ -58,8 +58,9 @@ as etapas 1 a 4 rodam normalmente e a avaliação é pulada.
 
 ## Como rodar
 
-Requisitos: **Python 3.11+** e **Git**. A base `refs/desafio1_bracis.db`
-precisa estar no repositório (93 MB).
+Requisitos: **Python 3.11+** e **Git**. A base canônica atual do Kaggle fica em
+`data/kaggle/desafio1_bracis.db` (90 MB); a versão original, em
+`refs/desafio1_bracis.db`.
 
 ### 1. Clonar
 
@@ -104,22 +105,21 @@ e imprime as métricas de extração e de classificação.
 **Conjunto oculto (sem gabarito):**
 
 ```bash
-python -m bracis_reader --txt caminho/dos/txt --sem-gabarito --saida resultado
+python -m bracis_reader --kaggle --txt caminho/dos/txt --sem-gabarito --confianca-maxima --saida resultado
 ```
 
 Gera `resultado/json/<documento_id>.json` e `resultado/submission.csv`.
 
 | Opção | O que faz |
 |---|---|
-| `--kaggle` | Usa os textos e o gabarito atuais do Kaggle (`data/kaggle/`) em vez dos originais |
+| `--kaggle` | Usa os textos, o gabarito e a base atuais do Kaggle (`data/kaggle/`) em vez dos originais |
 | `--txt PASTA` | Pasta dos documentos (padrão: `data/txt`) |
 | `--gold CSV` | Gabarito (padrão: `data/goldenset.csv`) |
 | `--sem-gabarito` | Não avalia; só extrai, classifica e grava |
-| `--base DB` | Base canônica (padrão: `refs/desafio1_bracis.db`) |
+| `--base DB` | Base canônica (padrão: `refs/desafio1_bracis.db`; com `--kaggle`, `data/kaggle/desafio1_bracis.db`) |
 | `--saida PASTA` | Onde gravar `json/` e `submission.csv` (padrão: `saida`) |
 | `--exato` | Avalia a extração por igualdade exata (padrão: IoU ≥ 0,5, como na avaliação oficial) |
 | `--robustez` | Roda os testes de generalização (ver [Como evitamos sobreajuste](#como-evitamos-sobreajuste-ao-goldenset)) |
-| `--sem-ajustes` | Desliga os ajustes pontuais do conjunto de desenvolvimento (ver [Resultado atual](#resultado-atual)) |
 | `--calibrar` | Mostra a taxa de acerto de cada regra de classificação, usada para calibrar a confiança |
 | `--genericas` | Também extrai alusões genéricas ("jurisprudência pacífica desta Corte"), que o gabarito oficial não anota |
 | `--confianca-maxima` | Envia confiança 1,0 em todas as citações. Com tudo certo, o bônus de calibração chega aos 10% exatos (nota 1,10000 no desenvolvimento) |
@@ -141,7 +141,8 @@ ruff check .    # verifica estilo e imports
 │   ├── goldenset.csv              # Gabarito original (225 citações)
 │   └── kaggle/                    # Versão atual do Kaggle, usada na submissão
 │       ├── txt/                   #   4 documentos corrigidos pela organização
-│       └── goldenset.csv          #   goldenset_offsets.csv (192 citações)
+│       ├── goldenset.csv          #   goldenset_offsets.csv (192 citações)
+│       └── desafio1_bracis.db     #   base atual (1.014 registros)
 ├── refs/                          # Material da Jusbrasil, incluindo a base
 │   └── desafio1_bracis.db         #   canônica e o conversor de submissão
 ├── src/bracis_reader/             # Código do projeto
@@ -199,7 +200,7 @@ ruff check .    # verifica estilo e imports
 |---|---|---|
 | `normalization.py` | — | Normaliza números (OCR, pontuação, formato CNJ) e nomes de relatores. |
 | `canonical_base.py` | `CanonicalBase` | Carrega a base e monta o índice de processos pelo número **do próprio processo**. |
-| `catalog.py` | — | Número de cada súmula e lei de cada artigo da base, que a tabela não guarda. |
+| `catalog.py` | — | Lista de reserva de súmulas e artigos, usada só na base antiga, que não tem títulos. |
 | `classifier.py` | `CitationClassifier` | Decide a classe, o `id_canonico` e a confiança de cada citação. |
 
 ### `reporting/` — etapa 4: saída
@@ -375,11 +376,12 @@ TST...). Sem desempate, a citação é `incompleta`.
 
 ### 4. Súmulas e artigos
 
-A base tem 5 súmulas e 13 artigos, mas não guarda o **número** da súmula
-nem a **lei** do artigo. `catalog.py` registra esses 18 metadados e os liga
-aos registros pelo começo do texto, conferindo tudo ao carregar a base.
-Quatro das cinco súmulas foram confirmadas automaticamente pelos acórdãos
-que transcrevem o enunciado junto com "Súmula N".
+A base tem 5 súmulas e 13 artigos. Na versão atual, cada registro começa com
+um título ("Súmula n. 83 do STJ", "Artigo 276 da Lei nº 4.737, de 15 de julho
+de 1965"). O catálogo é montado **lendo esses títulos**: número, tribunal e
+lei saem da própria base. A base original não tinha títulos; para ela,
+`catalog.py` guarda uma lista de reserva que liga cada registro pelo começo
+do texto.
 
 Um artigo só é `real` se **lei e número** baterem: "art. 5º da CF" é real;
 "art. 5º do CPC" e "art. 1.134 do CPC" são inventados.
@@ -406,7 +408,7 @@ gabarito oficial e dois lotes de teste na mesma política de anotação. Para
 recalcular com outro conjunto:
 
 ```bash
-python -m bracis_reader --txt PASTA --gold CSV --sem-ajustes --calibrar
+python -m bracis_reader --txt PASTA --gold CSV --calibrar
 ```
 
 ---
@@ -449,34 +451,24 @@ A submissão do Kaggle deve ser gerada com `--kaggle`:
 python main.py --kaggle --confianca-maxima
 ```
 
-Resultados sobre `data/kaggle`:
+Resultados sobre `data/kaggle`, só com as regras (sem nenhum ajuste manual):
 
-| Métrica | Padrão | Sem ajustes (`--sem-ajustes`) |
-|---|---|---|
-| Extração (IoU ≥ 0,5) | 192 / 192 | 192 / 192 |
-| F1 `real` / `inventada` / `incompleta` | 1,00 / 1,00 / 1,00 | 0,99 / 1,00 / 1,00 |
-| `tipo` (lei/jurisprudência) correto | 192 / 192 | 192 / 192 |
-| **Nota oficial (máximo 1,1)** | **1,10000** | **1,09848** |
+| Métrica | Resultado |
+|---|---|
+| Extração (IoU ≥ 0,5) | 192 / 192 |
+| F1 `real` / `inventada` / `incompleta` | 1,00 / 1,00 / 1,00 |
+| `tipo` (lei/jurisprudência) correto | 192 / 192 |
+| **Nota oficial (máximo 1,1)** | **1,10000** |
 
-A nota padrão exata é 1,0999989: tudo certo, com a confiança calibrada
-ligeiramente abaixo de 1. Com `--confianca-maxima`, chega a **1,1000000**.
-No conjunto final a diferença entre as duas opções é desprezível: com ~99%
-de acerto, o Brier fica em torno de 0,01 em ambos os casos.
+Com a confiança calibrada, a nota exata fica um pouco abaixo de 1,1 (o bônus
+depende de a confiança ser exatamente 1 nos acertos). Com `--confianca-maxima`,
+chega a **1,1000000000**. No conjunto final a diferença entre as duas opções
+é desprezível.
 
-### Ajuste do conjunto de desenvolvimento
-
-Uma anotação do gabarito oficial não pode ser reproduzida por regra: o
-processo TSE 0606252-11.2018.6.26.0000 (`gen_n1_013`) tem **dois registros de
-texto idêntico** na base, e o gabarito aceita só um deles.
-`classification/dev_corrections.py` força esse id **apenas nesse documento**,
-com três travas para não afetar dados novos:
-
-- o documento é reconhecido pelo **SHA-256 do texto completo**, não pelo
-  nome. Um arquivo do conjunto final chamado `gen_n1_013`, mas com qualquer
-  caractere diferente, não recebe ajuste nenhum;
-- o ajuste só vale se o detector tiver encontrado exatamente o mesmo
-  intervalo;
-- o trecho gravado continua sendo `texto[inicio:fim]`.
+A base atual removeu 4 registros duplicados da versão original (`doc_0227`,
+`doc_0461`, `doc_0657`, `doc_0662`). Com ela, o processo TSE
+0606252-11.2018.6.26.0000 passa a ter um único registro, e a resposta das
+regras coincide com o gabarito.
 
 ---
 
@@ -562,5 +554,6 @@ O pacote não foi instalado. Ative o `.venv` e rode
 `python -m pip install -e ".[dev]"`.
 
 **`Aviso: base canônica não encontrada`.**
-A classificação precisa de `refs/desafio1_bracis.db`. Confira se o arquivo
-foi baixado com o repositório ou informe outro caminho com `--base`.
+A classificação precisa da base canônica (`refs/desafio1_bracis.db` ou, com
+`--kaggle`, `data/kaggle/desafio1_bracis.db`). Confira se o arquivo foi
+baixado com o repositório ou informe outro caminho com `--base`.

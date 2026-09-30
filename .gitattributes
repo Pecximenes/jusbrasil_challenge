@@ -7,3 +7,5 @@
 *.toml text eol=lf
 *.pdf binary
 *.db  binary
+*.sh  text eol=lf
+Dockerfile text eol=lf

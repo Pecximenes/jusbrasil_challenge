@@ -19,16 +19,17 @@ A saída é um JSON por documento e o `submission.csv` no formato do Kaggle.
 ## Sumário
 
 1. [Visão geral do fluxo](#visão-geral-do-fluxo)
-2. [Como rodar](#como-rodar)
-3. [Estrutura de pastas](#estrutura-de-pastas)
-4. [O que cada parte faz](#o-que-cada-parte-faz)
-5. [Arquitetura e princípios SOLID](#arquitetura-e-princípios-solid)
-6. [Como as citações são encontradas (regex)](#como-as-citações-são-encontradas-regex)
-7. [Como as citações são classificadas](#como-as-citações-são-classificadas)
-8. [Como a avaliação funciona](#como-a-avaliação-funciona)
-9. [Resultado atual](#resultado-atual)
-10. [Como evitamos sobreajuste ao goldenset](#como-evitamos-sobreajuste-ao-goldenset)
-11. [Problemas comuns](#problemas-comuns)
+2. [Execução na avaliação final](#execução-na-avaliação-final)
+3. [Como rodar](#como-rodar)
+4. [Estrutura de pastas](#estrutura-de-pastas)
+5. [O que cada parte faz](#o-que-cada-parte-faz)
+6. [Arquitetura e princípios SOLID](#arquitetura-e-princípios-solid)
+7. [Como as citações são encontradas (regex)](#como-as-citações-são-encontradas-regex)
+8. [Como as citações são classificadas](#como-as-citações-são-classificadas)
+9. [Como a avaliação funciona](#como-a-avaliação-funciona)
+10. [Resultado atual](#resultado-atual)
+11. [Como evitamos sobreajuste ao goldenset](#como-evitamos-sobreajuste-ao-goldenset)
+12. [Problemas comuns](#problemas-comuns)
 
 ---
 
@@ -54,6 +55,45 @@ A saída é um JSON por documento e o `submission.csv` no formato do Kaggle.
 
 Tudo é coordenado por `application.py`, montado em `bootstrap.py`. Sem gabarito (caso do conjunto oculto),
 as etapas 1 a 4 rodam normalmente e a avaliação é pulada.
+
+---
+
+## Execução na avaliação final
+
+Ponto de entrada único, sem internet, sem GPU e sem modelos: a solução é
+feita só de regras (regex + consultas à base) e é determinística.
+
+```bash
+bash run.sh <caminho_db> <pasta_txt> <arquivo_saida>
+```
+
+Grava `<arquivo_saida>` no formato do `submission.csv` e, na mesma pasta,
+`json/<documento_id>.json`. O `.db` é lido como vem, sem pré-processamento: os
+índices (processos pelo número, súmulas e artigos pelo título) são montados
+em memória a cada execução, a partir de qualquer base no formato original.
+
+**Com Docker** (a imagem só precisa de internet no `build`):
+
+```bash
+docker build -t stj-ghostbusters .
+docker run --rm --network none \
+  -v /caminho/dos/dados:/dados \
+  stj-ghostbusters /dados/desafio1_bracis.db /dados/txt /dados/saida/submission.csv
+```
+
+**Sem Docker** (Python 3.11+ com `pydantic` instalado):
+
+```bash
+bash run.sh data/kaggle/desafio1_bracis.db data/kaggle/txt saida/submission.csv
+```
+
+| Requisito do regulamento | Situação |
+|---|---|
+| Ambiente declarado | `Dockerfile` (Python 3.11, `pydantic==2.11.7`) |
+| Pesos de modelos | Não se aplica: nenhum modelo é usado |
+| GPU / internet | Não usa GPU; roda com `--network none` |
+| Enriquecimento do `.db` | Feito em memória por `CanonicalBase` e `CanonicalCatalog` a cada execução |
+| Determinismo | Sem amostragem; mesma entrada gera a mesma saída byte a byte |
 
 ---
 

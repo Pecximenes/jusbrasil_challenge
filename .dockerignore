@@ -1,0 +1,8 @@
+.git
+.venv
+saida
+tests
+data
+refs
+submissoes
+**/__pycache__

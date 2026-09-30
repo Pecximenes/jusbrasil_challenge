@@ -1,5 +1,8 @@
-"""Apresentação dos resultados da avaliação no terminal."""
+"""Apresentação dos resultados no terminal."""
 
+from pathlib import Path
+
+from bracis_reader.domain.ports import ResultsByDocument
 from bracis_reader.evaluation.classification import ClassificationSummary
 from bracis_reader.evaluation.evaluator import DocumentEvaluation, EvaluationSummary
 from bracis_reader.evaluation.official import OfficialScore
@@ -80,3 +83,9 @@ class ConsoleReportPrinter:
                 f"tau={item.tau:.3f}  bônus={item.bonus:.4f}  nota={item.score:.5f}"
             )
         print(f"  NOTA FINAL: {score.final:.5f}")
+
+    def print_submission(self, results: ResultsByDocument, path: Path) -> None:
+        """Resumo do que foi gravado para submissão."""
+        total = sum(len(items) for items in results.values())
+        print(f"\n{total} citações de {len(results)} documentos gravadas em")
+        print(f"{path.parent} (json/ e {path.name})")

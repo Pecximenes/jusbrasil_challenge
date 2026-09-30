@@ -1,8 +1,8 @@
-"""Confiança calibrada por regra de decisão."""
+"""Políticas de confiança atribuída a cada decisão do classificador."""
+
+from typing import Protocol
 
 DEFAULT_CONFIDENCE = 0.5
-
-OVERALL_ACCURACY = 0.9971
 
 CALIBRATED: dict[str, float] = {
     "artigo_inexistente": 0.9998,
@@ -28,5 +28,34 @@ CALIBRATED: dict[str, float] = {
 }
 
 
-def confidence_for(rule: str) -> float:
-    return CALIBRATED.get(rule, DEFAULT_CONFIDENCE)
+class ConfidencePolicy(Protocol):
+    """Converte a regra que decidiu a citação em uma probabilidade."""
+
+    def for_rule(self, rule: str) -> float: ...
+
+
+class CalibratedConfidence:
+    """Taxa de acerto medida para cada regra (ver ``--calibrar``)."""
+
+    def __init__(
+        self,
+        table: dict[str, float] | None = None,
+        default: float = DEFAULT_CONFIDENCE,
+    ) -> None:
+        self._table = CALIBRATED if table is None else table
+        self._default = default
+
+    def for_rule(self, rule: str) -> float:
+        return self._table.get(rule, self._default)
+
+
+class FixedConfidence:
+    """Mesma confiança para todas as decisões."""
+
+    def __init__(self, value: float = 1.0) -> None:
+        if not 0.0 <= value <= 1.0:
+            raise ValueError("a confiança deve estar entre 0 e 1")
+        self._value = value
+
+    def for_rule(self, rule: str) -> float:
+        return self._value
